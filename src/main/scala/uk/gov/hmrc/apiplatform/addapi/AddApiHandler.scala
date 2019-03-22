@@ -10,8 +10,8 @@ import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
 import software.amazon.awssdk.services.apigateway.model.ImportRestApiRequest
 
+import scala.collection.JavaConversions.mapAsJavaMap
 import scala.util.{Failure, Success, Try}
-
 
 class AddApiHandler(apiGatewayClient: ApiGatewayClient) extends Lambda[String, String] with JsonMapper {
 
@@ -22,7 +22,12 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient) extends Lambda[String, S
   override def handle(input: String, context: Context): Either[Nothing, String] = {
     val logger: LambdaLogger = context.getLogger
     logger.log(s"Input: $input")
-    val importApiRequest = ImportRestApiRequest.builder().body(fromUtf8String(fromJson[APIGatewayProxyRequestEvent](input).getBody)).build()
+
+    val importApiRequest = ImportRestApiRequest.builder()
+      .body(fromUtf8String(fromJson[APIGatewayProxyRequestEvent](input).getBody))
+      .parameters(mapAsJavaMap(Map("endpointConfigurationTypes" -> "REGIONAL")))
+      .failOnWarnings(true)
+      .build()
     val apiGatewayResponse = Try(apiGatewayClient.importRestApi(importApiRequest))
 
     apiGatewayResponse match {
