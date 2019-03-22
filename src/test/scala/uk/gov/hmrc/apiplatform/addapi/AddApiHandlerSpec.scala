@@ -49,6 +49,8 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
 
       val capturedRequest: ImportRestApiRequest = importRestApiRequestCaptor.getValue
       capturedRequest.body().asUtf8String() shouldEqual "bar"
+      capturedRequest.parameters should contain (Entry("endpointConfigurationTypes", "REGIONAL"))
+      capturedRequest.failOnWarnings shouldBe true
     }
 
     "correctly handle UnauthorizedException thrown by AWS SDK" in new Setup {
