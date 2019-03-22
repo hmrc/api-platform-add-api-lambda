@@ -3,7 +3,7 @@ package uk.gov.hmrc.apiplatform.addapi
 import java.net.HttpURLConnection.{HTTP_INTERNAL_ERROR, HTTP_OK}
 import java.util.UUID
 
-import com.amazonaws.services.lambda.runtime.events.{APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent}
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent
 import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
@@ -29,7 +29,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar {
 
       when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(apiGatewayResponse)
 
-      val result: Either[Nothing, APIGatewayProxyResponseEvent] = addApiHandler.handle(new APIGatewayProxyRequestEvent().withBody("{}"), mockContext)
+      val result: Either[Nothing, APIGatewayProxyResponseEvent] = addApiHandler.handle(APIGatewayRequestEvent().withBody("{}"), mockContext)
 
       result.isRight shouldBe true
       val Right(responseEvent) = result
@@ -45,7 +45,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar {
       val importRestApiRequestCaptor: ArgumentCaptor[ImportRestApiRequest] = ArgumentCaptor.forClass(classOf[ImportRestApiRequest])
       when(mockAPIGatewayClient.importRestApi(importRestApiRequestCaptor.capture())).thenReturn(apiGatewayResponse)
 
-      val result: Either[Nothing, APIGatewayProxyResponseEvent] = addApiHandler.handle(new APIGatewayProxyRequestEvent().withBody(inputBody), mockContext)
+      val result: Either[Nothing, APIGatewayProxyResponseEvent] = addApiHandler.handle(APIGatewayRequestEvent().withBody(inputBody), mockContext)
 
       val capturedRequest = importRestApiRequestCaptor.getValue
       capturedRequest.body().asUtf8String() shouldEqual inputBody
@@ -55,7 +55,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar {
       val errorMessage = "You're an idiot"
       when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenThrow(UnauthorizedException.builder().message(errorMessage).build())
 
-      val result: Either[Nothing, APIGatewayProxyResponseEvent] = addApiHandler.handle(new APIGatewayProxyRequestEvent().withBody("{}"), mockContext)
+      val result: Either[Nothing, APIGatewayProxyResponseEvent] = addApiHandler.handle(APIGatewayRequestEvent().withBody("{}"), mockContext)
 
       result.isRight shouldBe true
       val Right(responseEvent) = result
