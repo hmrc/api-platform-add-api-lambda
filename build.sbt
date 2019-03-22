@@ -7,7 +7,8 @@ lazy val compileDependencies = Seq(
   "io.github.mkotsur" %% "aws-lambda-scala" % "0.1.1",
   "software.amazon.awssdk" % "apigateway" % "2.5.13",
   "com.fasterxml.jackson.core" % "jackson-databind" % jacksonVersion,
-  "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonVersion
+  "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonVersion,
+  "io.swagger" % "swagger-parser" % "1.0.42"
 )
 
 lazy val testScope: String = "test"
@@ -44,6 +45,6 @@ lazy val lambda = (project in file("."))
   )
 
 // Coverage configuration
-coverageMinimum := 80
+coverageMinimum := 90
 coverageFailOnMinimum := true
 coverageExcludedPackages := "<empty>"
