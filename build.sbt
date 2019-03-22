@@ -1,9 +1,13 @@
 lazy val appName = "api-platform-add-api-lambda"
 lazy val appDependencies: Seq[ModuleID] = compileDependencies ++ testDependencies
 
+lazy val jacksonVersion = "2.9.8"
+
 lazy val compileDependencies = Seq(
   "io.github.mkotsur" %% "aws-lambda-scala" % "0.1.1",
-  "software.amazon.awssdk" % "apigateway" % "2.5.13"
+  "software.amazon.awssdk" % "apigateway" % "2.5.13",
+  "com.fasterxml.jackson.core" % "jackson-databind" % jacksonVersion,
+  "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonVersion
 )
 
 lazy val testScope: String = "test"
