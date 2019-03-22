@@ -16,6 +16,11 @@ import software.amazon.awssdk.services.apigateway.model.{ImportRestApiRequest, I
 class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar with JsonMapper {
   trait Setup {
     val inputBody = """{
+                      |    "requestContext": {
+                      |        "identity": {
+                      |            "sourceIp": "127.0.0.1"
+                      |        }
+                      |    },
                       |    "body": "{\"paths\": {\"/hello-world\": {\"get\": {\"responses\": {\"200\": {\"description\": \"OK\"}},\"x-auth-type\": \"Application User\",\"x-throttling-tier\": \"Unlimited\",\"x-scope\": \"read:state-pension-calculation\"}}},\"info\": {\"title\": \"Test OpenAPI 2\",\"version\": \"1.0\"},\"swagger\": \"2.0\"}"
                       |}""".stripMargin
     val mockLambdaLogger: LambdaLogger = mock[LambdaLogger]

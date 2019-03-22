@@ -10,7 +10,7 @@ import io.swagger.models.Swagger
 import io.swagger.parser.SwaggerParser
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
-import software.amazon.awssdk.services.apigateway.model.{ImportRestApiRequest, PatchOperation, UpdateRestApiRequest}
+import software.amazon.awssdk.services.apigateway.model.ImportRestApiRequest
 
 import scala.collection.JavaConversions.mapAsJavaMap
 import scala.util.{Failure, Success, Try}
@@ -40,15 +40,15 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient) extends Lambda[String, S
 
   def swagger(requestEvent: APIGatewayProxyRequestEvent): Swagger = {
     val swagger: Swagger = new SwaggerParser().parse(requestEvent.getBody)
-    swagger.vendorExtension("x-amazon-apigateway-policy", amazonApigatewayPolicy())
+    swagger.vendorExtension("x-amazon-apigateway-policy", amazonApigatewayPolicy(requestEvent))
   }
 
-  def amazonApigatewayPolicy(): Map[String, Object] = {
+  def amazonApigatewayPolicy(requestEvent: APIGatewayProxyRequestEvent): Map[String, Object] = {
     Map("Version" -> "2012-10-17",
       "Statement" -> List(
         Map("Effect" -> "Allow", "Principal" -> "*", "Action" -> "execute-api:Invoke", "Resource" -> "*", "Condition" ->
           Map("IpAddress" ->
-            Map("aws:SourceIp" -> "163.171.32.162/32")
+            Map("aws:SourceIp" -> s"${requestEvent.getRequestContext.getIdentity.getSourceIp}/32")
           )
         )
       )
