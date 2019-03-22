@@ -6,9 +6,11 @@ import com.amazonaws.services.lambda.runtime.events.{APIGatewayProxyRequestEvent
 import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
 import io.github.mkotsur.aws.handler.Lambda
 import io.github.mkotsur.aws.handler.Lambda._
+import io.swagger.models.Swagger
+import io.swagger.parser.SwaggerParser
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
-import software.amazon.awssdk.services.apigateway.model.ImportRestApiRequest
+import software.amazon.awssdk.services.apigateway.model.{ImportRestApiRequest, PatchOperation, UpdateRestApiRequest}
 
 import scala.collection.JavaConversions.mapAsJavaMap
 import scala.util.{Failure, Success, Try}
@@ -24,7 +26,7 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient) extends Lambda[String, S
     logger.log(s"Input: $input")
 
     val importApiRequest = ImportRestApiRequest.builder()
-      .body(fromUtf8String(fromJson[APIGatewayProxyRequestEvent](input).getBody))
+      .body(fromUtf8String(toJson(swagger(fromJson[APIGatewayProxyRequestEvent](input)))))
       .parameters(mapAsJavaMap(Map("endpointConfigurationTypes" -> "REGIONAL")))
       .failOnWarnings(true)
       .build()
@@ -34,5 +36,22 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient) extends Lambda[String, S
       case Success(response) => Right(toJson(new APIGatewayProxyResponseEvent().withStatusCode(HTTP_OK).withBody(response.id())))
       case Failure(exception) => Right(toJson(new APIGatewayProxyResponseEvent().withStatusCode(HTTP_INTERNAL_ERROR).withBody(exception.getMessage)))
     }
+  }
+
+  def swagger(requestEvent: APIGatewayProxyRequestEvent): Swagger = {
+    val swagger: Swagger = new SwaggerParser().parse(requestEvent.getBody)
+    swagger.vendorExtension("x-amazon-apigateway-policy", amazonApigatewayPolicy())
+  }
+
+  def amazonApigatewayPolicy(): Map[String, Object] = {
+    Map("Version" -> "2012-10-17",
+      "Statement" -> List(
+        Map("Effect" -> "Allow", "Principal" -> "*", "Action" -> "execute-api:Invoke", "Resource" -> "*", "Condition" ->
+          Map("IpAddress" ->
+            Map("aws:SourceIp" -> "163.171.32.162/32")
+          )
+        )
+      )
+    )
   }
 }

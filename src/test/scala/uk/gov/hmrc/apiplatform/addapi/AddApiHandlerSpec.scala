@@ -15,7 +15,9 @@ import software.amazon.awssdk.services.apigateway.model.{ImportRestApiRequest, I
 
 class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar with JsonMapper {
   trait Setup {
-    val inputBody = """{"body": "bar"}"""
+    val inputBody = """{
+                      |    "body": "{\"paths\": {\"/hello-world\": {\"get\": {\"responses\": {\"200\": {\"description\": \"OK\"}},\"x-auth-type\": \"Application User\",\"x-throttling-tier\": \"Unlimited\",\"x-scope\": \"read:state-pension-calculation\"}}},\"info\": {\"title\": \"Test OpenAPI 2\",\"version\": \"1.0\"},\"swagger\": \"2.0\"}"
+                      |}""".stripMargin
     val mockLambdaLogger: LambdaLogger = mock[LambdaLogger]
     val mockContext: Context = mock[Context]
     when(mockContext.getLogger).thenReturn(mockLambdaLogger)
@@ -39,7 +41,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
       response.getBody shouldEqual id
     }
 
-    "correctly convert OpenAPI JSON into ImportRestApiRequest" in new Setup {
+    "correctly convert OpenAPI JSON into ImportRestApiRequest with amazon extensions" in new Setup {
       val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(UUID.randomUUID().toString).build()
 
       val importRestApiRequestCaptor: ArgumentCaptor[ImportRestApiRequest] = ArgumentCaptor.forClass(classOf[ImportRestApiRequest])
@@ -48,7 +50,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
       val result: Either[Nothing, String] = addApiHandler.handle(inputBody, mockContext)
 
       val capturedRequest: ImportRestApiRequest = importRestApiRequestCaptor.getValue
-      capturedRequest.body().asUtf8String() shouldEqual "bar"
+      capturedRequest.body().asUtf8String() should include("x-amazon-apigateway-policy")
       capturedRequest.parameters should contain (Entry("endpointConfigurationTypes", "REGIONAL"))
       capturedRequest.failOnWarnings shouldBe true
     }
