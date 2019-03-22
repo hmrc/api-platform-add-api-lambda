@@ -13,8 +13,9 @@ import org.scalatest.mockito.MockitoSugar
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
 import software.amazon.awssdk.services.apigateway.model.{ImportRestApiRequest, ImportRestApiResponse, UnauthorizedException}
 
-class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar {
+class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar with JsonMapper {
   trait Setup {
+    val inputBody = """{"body": "bar"}"""
     val mockLambdaLogger: LambdaLogger = mock[LambdaLogger]
     val mockContext: Context = mock[Context]
     when(mockContext.getLogger).thenReturn(mockLambdaLogger)
@@ -24,43 +25,45 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar {
 
   "The Add API handler" should {
     "send API specification to AWS endpoint and return the created id" in new Setup {
-      val id = UUID.randomUUID().toString
-      val apiGatewayResponse = ImportRestApiResponse.builder().id(id).build()
+      val id: String = UUID.randomUUID().toString
+      val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(id).build()
 
       when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(apiGatewayResponse)
 
-      val result: Either[Nothing, APIGatewayProxyResponseEvent] = addApiHandler.handle(APIGatewayRequestEvent().withBody("{}"), mockContext)
+      val result: Either[Nothing, String] = addApiHandler.handle(inputBody, mockContext)
 
       result.isRight shouldBe true
       val Right(responseEvent) = result
-      responseEvent.getStatusCode shouldEqual HTTP_OK
-      responseEvent.getBody shouldEqual id
+      val response: APIGatewayProxyResponseEvent = fromJson[APIGatewayProxyResponseEvent](responseEvent)
+      response.getStatusCode shouldEqual HTTP_OK
+      response.getBody shouldEqual id
     }
 
     "correctly convert OpenAPI JSON into ImportRestApiRequest" in new Setup {
-      val apiGatewayResponse = ImportRestApiResponse.builder().id(UUID.randomUUID().toString).build()
-
-      val inputBody = "{foo: 'bar'}"
+      val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(UUID.randomUUID().toString).build()
 
       val importRestApiRequestCaptor: ArgumentCaptor[ImportRestApiRequest] = ArgumentCaptor.forClass(classOf[ImportRestApiRequest])
       when(mockAPIGatewayClient.importRestApi(importRestApiRequestCaptor.capture())).thenReturn(apiGatewayResponse)
 
-      val result: Either[Nothing, APIGatewayProxyResponseEvent] = addApiHandler.handle(APIGatewayRequestEvent().withBody(inputBody), mockContext)
+      val result: Either[Nothing, String] = addApiHandler.handle(inputBody, mockContext)
 
-      val capturedRequest = importRestApiRequestCaptor.getValue
-      capturedRequest.body().asUtf8String() shouldEqual inputBody
+      val capturedRequest: ImportRestApiRequest = importRestApiRequestCaptor.getValue
+      capturedRequest.body().asUtf8String() shouldEqual "bar"
     }
 
     "correctly handle UnauthorizedException thrown by AWS SDK" in new Setup {
       val errorMessage = "You're an idiot"
       when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenThrow(UnauthorizedException.builder().message(errorMessage).build())
 
-      val result: Either[Nothing, APIGatewayProxyResponseEvent] = addApiHandler.handle(APIGatewayRequestEvent().withBody("{}"), mockContext)
+      val result: Either[Nothing, String] = addApiHandler.handle(inputBody, mockContext)
 
       result.isRight shouldBe true
       val Right(responseEvent) = result
-      responseEvent.getStatusCode shouldEqual HTTP_INTERNAL_ERROR
-      responseEvent.getBody shouldEqual errorMessage
+      val response: APIGatewayProxyResponseEvent = fromJson[APIGatewayProxyResponseEvent](responseEvent)
+      response.getStatusCode shouldEqual HTTP_INTERNAL_ERROR
+      response.getBody shouldEqual errorMessage
     }
   }
 }
+
+case class Simple(msg: String)
