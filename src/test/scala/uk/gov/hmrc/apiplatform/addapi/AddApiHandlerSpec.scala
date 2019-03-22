@@ -1,11 +1,10 @@
 package uk.gov.hmrc.apiplatform.addapi
 
-import java.net.HttpURLConnection
 import java.net.HttpURLConnection.{HTTP_INTERNAL_ERROR, HTTP_OK}
 import java.util.UUID
 
 import com.amazonaws.services.lambda.runtime.events.{APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent}
-import com.amazonaws.services.lambda.runtime.Context
+import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
@@ -16,7 +15,10 @@ import software.amazon.awssdk.services.apigateway.model.{ImportRestApiRequest, I
 
 class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar {
   trait Setup {
-    val mockAPIGatewayClient = mock[ApiGatewayClient]
+    val mockLambdaLogger: LambdaLogger = mock[LambdaLogger]
+    val mockContext: Context = mock[Context]
+    when(mockContext.getLogger).thenReturn(mockLambdaLogger)
+    val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient]
     val addApiHandler = new AddApiHandler(mockAPIGatewayClient)
   }
 
@@ -27,7 +29,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar {
 
       when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(apiGatewayResponse)
 
-      val result: Either[Nothing, APIGatewayProxyResponseEvent] = addApiHandler.handle(new APIGatewayProxyRequestEvent().withBody("{}"), mock[Context])
+      val result: Either[Nothing, APIGatewayProxyResponseEvent] = addApiHandler.handle(new APIGatewayProxyRequestEvent().withBody("{}"), mockContext)
 
       result.isRight shouldBe true
       val Right(responseEvent) = result
@@ -43,7 +45,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar {
       val importRestApiRequestCaptor: ArgumentCaptor[ImportRestApiRequest] = ArgumentCaptor.forClass(classOf[ImportRestApiRequest])
       when(mockAPIGatewayClient.importRestApi(importRestApiRequestCaptor.capture())).thenReturn(apiGatewayResponse)
 
-      val result: Either[Nothing, APIGatewayProxyResponseEvent] = addApiHandler.handle(new APIGatewayProxyRequestEvent().withBody(inputBody), mock[Context])
+      val result: Either[Nothing, APIGatewayProxyResponseEvent] = addApiHandler.handle(new APIGatewayProxyRequestEvent().withBody(inputBody), mockContext)
 
       val capturedRequest = importRestApiRequestCaptor.getValue
       capturedRequest.body().asUtf8String() shouldEqual inputBody
@@ -53,7 +55,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar {
       val errorMessage = "You're an idiot"
       when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenThrow(UnauthorizedException.builder().message(errorMessage).build())
 
-      val result: Either[Nothing, APIGatewayProxyResponseEvent] = addApiHandler.handle(new APIGatewayProxyRequestEvent().withBody("{}"), mock[Context])
+      val result: Either[Nothing, APIGatewayProxyResponseEvent] = addApiHandler.handle(new APIGatewayProxyRequestEvent().withBody("{}"), mockContext)
 
       result.isRight shouldBe true
       val Right(responseEvent) = result

@@ -2,7 +2,7 @@ package uk.gov.hmrc.apiplatform.addapi
 
 import java.net.HttpURLConnection.{HTTP_INTERNAL_ERROR, HTTP_OK}
 
-import com.amazonaws.services.lambda.runtime.Context
+import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
 import com.amazonaws.services.lambda.runtime.events.{APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent}
 import io.github.mkotsur.aws.handler.Lambda
 import io.github.mkotsur.aws.handler.Lambda._
@@ -21,6 +21,8 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient) extends Lambda[APIGatewa
   }
 
   override def handle(input: APIGatewayProxyRequestEvent, context: Context): Either[Nothing, APIGatewayProxyResponseEvent] = {
+    val logger: LambdaLogger = context.getLogger
+    logger.log(s"Input: $input")
     val importApiRequest = ImportRestApiRequest.builder().body(SdkBytes.fromUtf8String(input.getBody)).build()
     val apiGatewayResponse = Try(apiGatewayClient.importRestApi(importApiRequest))
 
