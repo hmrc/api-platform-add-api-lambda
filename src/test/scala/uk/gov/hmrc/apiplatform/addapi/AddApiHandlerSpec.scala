@@ -19,31 +19,22 @@ import scala.collection.JavaConverters._
 
 class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar with JsonMapper {
   trait Setup {
-    val inputBody: String = """{
-                      |    "requestContext": {
-                      |        "identity": {
-                      |            "sourceIp": "127.0.0.1"
-                      |        }
-                      |    },
-                      |    "body": "{\"paths\": {\"/world\": {\"get\": {\"responses\": {\"200\": {\"description\": \"OK\"}},\"x-auth-type\": \"Application User\",\"x-throttling-tier\": \"Unlimited\",\"x-scope\": \"read:state-pension-calculation\"}}},\"info\": {\"title\": \"Test OpenAPI 2\",\"version\": \"1.0\"},\"swagger\": \"2.0\"}"
-                      |}""".stripMargin
+    val inputBody: String = InputBody().toString
     val mockLambdaLogger: LambdaLogger = mock[LambdaLogger]
     val mockContext: Context = mock[Context]
     when(mockContext.getLogger).thenReturn(mockLambdaLogger)
     val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient]
     val environment: Map[String, String] = Map(
-      "domain" -> "https://api-example-microservice.integration.tax.service.gov.uk",
+      "domain" -> "integration.tax.service.gov.uk",
       "vpc_link_id" -> "gix6s7"
     )
     val addApiHandler = new AddApiHandler(mockAPIGatewayClient, environment)
-    sys.env
   }
 
   "The Add API handler" should {
     "send API specification to AWS endpoint and return the created id" in new Setup {
       val id: String = UUID.randomUUID().toString
       val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(id).build()
-
       when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(apiGatewayResponse)
 
       val result: Either[Nothing, String] = addApiHandler.handle(inputBody, mockContext)
@@ -57,7 +48,6 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
 
     "correctly convert OpenAPI JSON into ImportRestApiRequest with amazon extension for API gateway policy" in new Setup {
       val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(UUID.randomUUID().toString).build()
-
       val importRestApiRequestCaptor: ArgumentCaptor[ImportRestApiRequest] = ArgumentCaptor.forClass(classOf[ImportRestApiRequest])
       when(mockAPIGatewayClient.importRestApi(importRestApiRequestCaptor.capture())).thenReturn(apiGatewayResponse)
 
@@ -85,13 +75,26 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
           vendorExtensions("x-amazon-apigateway-integration") match {
             case jve: java.util.Map[String, Object] =>
               val ve = jve.asScala
-              ve("uri") shouldEqual "https://https://api-example-microservice.integration.tax.service.gov.uk/world"
+              ve("uri") shouldEqual "https://api-example-microservice.integration.tax.service.gov.uk/world"
               ve("connectionId") shouldEqual "gix6s7"
               ve("httpMethod") shouldEqual "GET"
             case _ => throw new ClassCastException
           }
         }
       }
+    }
+
+    "handle a host with an incorrect format in the swagger payload" in new Setup {
+      val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(UUID.randomUUID().toString).build()
+      when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(apiGatewayResponse)
+
+      val result: Either[Nothing, String] = addApiHandler.handle(InputBody(host = "api-example-microservice").toString, mockContext)
+
+      result.isRight shouldBe true
+      val Right(responseEvent) = result
+      val response: APIGatewayProxyResponseEvent = fromJson[APIGatewayProxyResponseEvent](responseEvent)
+      response.getStatusCode shouldEqual HTTP_INTERNAL_ERROR
+      response.getBody shouldEqual "Invalid host format"
     }
 
     "correctly handle UnauthorizedException thrown by AWS SDK" in new Setup {
@@ -109,4 +112,13 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
   }
 }
 
-case class Simple(msg: String)
+case class InputBody(host: String = "api-example-microservice.protected.mdtp") {
+  override val toString: String = raw"""{
+                            |    "requestContext": {
+                            |        "identity": {
+                            |            "sourceIp": "127.0.0.1"
+                            |        }
+                            |    },
+                            |    "body": "{\"host\": \"$host\", \"paths\": {\"/world\": {\"get\": {\"responses\": {\"200\": {\"description\": \"OK\"}},\"x-auth-type\": \"Application User\",\"x-throttling-tier\": \"Unlimited\",\"x-scope\": \"read:state-pension-calculation\"}}},\"info\": {\"title\": \"Test OpenAPI 2\",\"version\": \"1.0\"},\"swagger\": \"2.0\"}"
+                            |}""".stripMargin
+}
