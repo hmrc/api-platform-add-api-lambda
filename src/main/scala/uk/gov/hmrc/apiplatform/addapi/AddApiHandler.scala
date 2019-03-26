@@ -32,7 +32,10 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient, environment: Map[String,
     logger.log(s"Input: $input")
 
     Try(importApi(input)) map { response =>
-      Right(toJson(new APIGatewayProxyResponseEvent().withStatusCode(HTTP_OK).withBody(response.id())))
+      Right(toJson(new APIGatewayProxyResponseEvent()
+        .withStatusCode(HTTP_OK)
+        .withBody(toJson(AddApiResponse(response.id())))
+      ))
     } recover recovery get
   }
 
@@ -104,3 +107,5 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient, environment: Map[String,
     )
   }
 }
+
+case class AddApiResponse(restApiId: String)
