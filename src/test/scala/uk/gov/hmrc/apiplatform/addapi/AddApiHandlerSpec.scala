@@ -13,7 +13,7 @@ import org.mockito.Mockito.when
 import org.scalatest._
 import org.scalatest.mockito.MockitoSugar
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
-import software.amazon.awssdk.services.apigateway.model.{ImportRestApiRequest, ImportRestApiResponse, UnauthorizedException}
+import software.amazon.awssdk.services.apigateway.model._
 
 import scala.collection.JavaConverters._
 
@@ -97,9 +97,37 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
       response.getBody shouldEqual "Invalid host format"
     }
 
-    "correctly handle UnauthorizedException thrown by AWS SDK" in new Setup {
+    "correctly handle UnauthorizedException thrown by AWS SDK when importing API" in new Setup {
       val errorMessage = "You're an idiot"
       when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenThrow(UnauthorizedException.builder().message(errorMessage).build())
+
+      val result: Either[Nothing, String] = addApiHandler.handle(inputBody, mockContext)
+
+      result.isRight shouldBe true
+      val Right(responseEvent) = result
+      val response: APIGatewayProxyResponseEvent = fromJson[APIGatewayProxyResponseEvent](responseEvent)
+      response.getStatusCode shouldEqual HTTP_INTERNAL_ERROR
+      response.getBody shouldEqual errorMessage
+    }
+
+    "deploy the rest API that was previously imported" in new Setup {
+      val importedRestApiId: String = UUID.randomUUID().toString
+      val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(importedRestApiId).build()
+      when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(apiGatewayResponse)
+      val createDeploymentRequestCaptor: ArgumentCaptor[CreateDeploymentRequest] = ArgumentCaptor.forClass(classOf[CreateDeploymentRequest])
+      when(mockAPIGatewayClient.createDeployment(createDeploymentRequestCaptor.capture())).thenReturn(CreateDeploymentResponse.builder().build())
+
+      val result: Either[Nothing, String] = addApiHandler.handle(inputBody, mockContext)
+
+      val capturedRequest: CreateDeploymentRequest = createDeploymentRequestCaptor.getValue
+      capturedRequest.restApiId shouldEqual importedRestApiId
+      capturedRequest.stageName shouldEqual "current"
+    }
+
+    "correctly handle UnauthorizedException thrown by AWS SDK when deploying API" in new Setup {
+      val errorMessage = "You're an idiot"
+      when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(ImportRestApiResponse.builder().id(UUID.randomUUID().toString).build())
+      when(mockAPIGatewayClient.createDeployment(any[CreateDeploymentRequest])).thenThrow(UnauthorizedException.builder().message(errorMessage).build())
 
       val result: Either[Nothing, String] = addApiHandler.handle(inputBody, mockContext)
 

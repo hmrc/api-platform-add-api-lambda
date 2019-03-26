@@ -10,7 +10,7 @@ import io.swagger.models.{HttpMethod, Operation, Swagger}
 import io.swagger.parser.SwaggerParser
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
-import software.amazon.awssdk.services.apigateway.model.{ImportRestApiRequest, ImportRestApiResponse}
+import software.amazon.awssdk.services.apigateway.model.{CreateDeploymentRequest, ImportRestApiRequest, ImportRestApiResponse}
 import uk.gov.hmrc.apiplatform.addapi.ErrorRecovery.recovery
 
 import scala.collection.JavaConversions.mapAsJavaMap
@@ -30,13 +30,15 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient, environment: Map[String,
     val logger: LambdaLogger = context.getLogger
     logger.log(s"Input: $input")
 
-    Try(importApiRequest(input)) map { response =>
+    Try(importApi(input)) map { response =>
       Right(toJson(new APIGatewayProxyResponseEvent().withStatusCode(HTTP_OK).withBody(response.id())))
     } recover recovery get
   }
 
-  def importApiRequest(input: String): ImportRestApiResponse = {
-    apiGatewayClient.importRestApi(buildImportApiRequest(input))
+  def importApi(input: String): ImportRestApiResponse = {
+    val importRestApiResponse = apiGatewayClient.importRestApi(buildImportApiRequest(input))
+    apiGatewayClient.createDeployment(buildCreateDeploymentRequest(importRestApiResponse.id()))
+    importRestApiResponse
   }
 
   def buildImportApiRequest(input: String): ImportRestApiRequest = {
@@ -44,6 +46,14 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient, environment: Map[String,
       .body(fromUtf8String(toJson(swagger(fromJson[APIGatewayProxyRequestEvent](input)))))
       .parameters(mapAsJavaMap(Map("endpointConfigurationTypes" -> "REGIONAL")))
       .failOnWarnings(true)
+      .build()
+  }
+
+  def buildCreateDeploymentRequest(restApiId: String): CreateDeploymentRequest = {
+    CreateDeploymentRequest
+      .builder()
+      .restApiId(restApiId)
+      .stageName("current")
       .build()
   }
 
