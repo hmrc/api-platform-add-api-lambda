@@ -64,8 +64,7 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient, environment: Map[String,
       .builder()
       .restApiId(restApiId)
       .stageName("current")
-      .patchOperations(PatchOperation.builder().op(REPLACE).path("/*/*/metrics/enabled").value("true").build(),
-        PatchOperation.builder().op(REPLACE).path("/*/*/logging/loglevel").value("INFO").build())
+      .patchOperations(PatchOperation.builder().op(REPLACE).path("/*/*/logging/loglevel").value("INFO").build())
       .build()
   }
 

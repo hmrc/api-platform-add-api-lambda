@@ -153,7 +153,6 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
       capturedRequest.restApiId shouldEqual importedRestApiId
       capturedRequest.stageName shouldEqual "current"
       val operations = capturedRequest.patchOperations.asScala
-      exactly(1, operations) should have('op(REPLACE), 'path("/*/*/metrics/enabled"), 'value("true"))
       exactly(1, operations) should have('op(REPLACE), 'path("/*/*/logging/loglevel"), 'value("INFO"))
     }
   }
