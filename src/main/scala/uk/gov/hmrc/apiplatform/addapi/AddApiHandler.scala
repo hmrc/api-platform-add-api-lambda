@@ -1,6 +1,6 @@
 package uk.gov.hmrc.apiplatform.addapi
 
-import java.net.HttpURLConnection.{HTTP_INTERNAL_ERROR, HTTP_OK}
+import java.net.HttpURLConnection.HTTP_OK
 
 import com.amazonaws.services.lambda.runtime.events.{APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent}
 import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
@@ -10,13 +10,17 @@ import io.swagger.models.{HttpMethod, Operation, Swagger}
 import io.swagger.parser.SwaggerParser
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
-import software.amazon.awssdk.services.apigateway.model.ImportRestApiRequest
+import software.amazon.awssdk.services.apigateway.model.{ImportRestApiRequest, ImportRestApiResponse}
+import uk.gov.hmrc.apiplatform.addapi.ErrorRecovery.recovery
 
 import scala.collection.JavaConversions.mapAsJavaMap
 import scala.collection.JavaConverters._
-import scala.util.{Failure, Success, Try}
+import scala.util.Try
+import scala.util.matching.Regex
 
 class AddApiHandler(apiGatewayClient: ApiGatewayClient, environment: Map[String, String]) extends Lambda[String, String] with JsonMapper {
+
+  val serviceNameRegex: Regex = "(.+)\\.protected\\.mdtp".r
 
   def this() {
     this(ApiGatewayClient.create(), sys.env)
@@ -26,37 +30,45 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient, environment: Map[String,
     val logger: LambdaLogger = context.getLogger
     logger.log(s"Input: $input")
 
-    val importApiRequest = ImportRestApiRequest.builder()
+    Try(importApiRequest(input)) map { response =>
+      Right(toJson(new APIGatewayProxyResponseEvent().withStatusCode(HTTP_OK).withBody(response.id())))
+    } recover recovery get
+  }
+
+  def importApiRequest(input: String): ImportRestApiResponse = {
+    apiGatewayClient.importRestApi(buildImportApiRequest(input))
+  }
+
+  def buildImportApiRequest(input: String): ImportRestApiRequest = {
+    ImportRestApiRequest.builder()
       .body(fromUtf8String(toJson(swagger(fromJson[APIGatewayProxyRequestEvent](input)))))
       .parameters(mapAsJavaMap(Map("endpointConfigurationTypes" -> "REGIONAL")))
       .failOnWarnings(true)
       .build()
-    val apiGatewayResponse = Try(apiGatewayClient.importRestApi(importApiRequest))
-
-    apiGatewayResponse match {
-      case Success(response) => Right(toJson(new APIGatewayProxyResponseEvent().withStatusCode(HTTP_OK).withBody(response.id())))
-      case Failure(exception) => Right(toJson(new APIGatewayProxyResponseEvent().withStatusCode(HTTP_INTERNAL_ERROR).withBody(exception.getMessage)))
-    }
   }
 
   def swagger(requestEvent: APIGatewayProxyRequestEvent): Swagger = {
     val swagger: Swagger = new SwaggerParser().parse(requestEvent.getBody)
     swagger.getPaths.asScala foreach { path =>
       path._2.getOperationMap.asScala foreach { op =>
-        op._2.setVendorExtension("x-amazon-apigateway-integration", amazonApigatewayIntegration(path._1, op))
+        op._2.setVendorExtension("x-amazon-apigateway-integration", amazonApigatewayIntegration(swagger.getHost, path._1, op))
       }
     }
     swagger.vendorExtension("x-amazon-apigateway-policy", amazonApigatewayPolicy(requestEvent))
   }
 
-  def amazonApigatewayIntegration(path: String, op: (HttpMethod, Operation)): Map[String, Object] = {
-    Map("uri" -> s"https://${environment("domain")}$path",
-      "responses" -> Map("default" -> Map("statusCode" -> "200")),
-      "passthroughBehavior" -> "when_no_match",
-      "connectionType" -> "VPC_LINK",
-      "connectionId" -> environment("vpc_link_id"),
-      "httpMethod" -> op._1.name,
-      "type" -> "http_proxy")
+  def amazonApigatewayIntegration(host: String, path: String, operation: (HttpMethod, Operation)): Map[String, Object] = {
+    serviceNameRegex.findFirstMatchIn(host) match {
+      case Some(serviceNameMatch) =>
+        Map("uri" -> s"https://${serviceNameMatch.group(1)}.${environment("domain")}$path",
+        "responses" -> Map("default" -> Map("statusCode" -> "200")),
+        "passthroughBehavior" -> "when_no_match",
+        "connectionType" -> "VPC_LINK",
+        "connectionId" -> environment("vpc_link_id"),
+        "httpMethod" -> operation._1.name,
+        "type" -> "http_proxy")
+      case None => throw new RuntimeException("Invalid host format")
+    }
   }
 
   def amazonApigatewayPolicy(requestEvent: APIGatewayProxyRequestEvent): Map[String, Object] = {
