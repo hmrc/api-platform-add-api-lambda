@@ -44,7 +44,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
       val Right(responseEvent) = result
       val response: APIGatewayProxyResponseEvent = fromJson[APIGatewayProxyResponseEvent](responseEvent)
       response.getStatusCode shouldEqual HTTP_OK
-      response.getBody shouldEqual id
+      response.getBody shouldEqual s"""{"restApiId":"$id"}"""
     }
 
     "correctly convert OpenAPI JSON into ImportRestApiRequest with amazon extension for API gateway policy" in new Setup {
