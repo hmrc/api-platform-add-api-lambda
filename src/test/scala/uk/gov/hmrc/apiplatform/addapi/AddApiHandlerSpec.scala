@@ -13,6 +13,7 @@ import org.mockito.Mockito.when
 import org.scalatest._
 import org.scalatest.mockito.MockitoSugar
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
+import software.amazon.awssdk.services.apigateway.model.Op.REPLACE
 import software.amazon.awssdk.services.apigateway.model._
 
 import scala.collection.JavaConverters._
@@ -136,6 +137,24 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
       val response: APIGatewayProxyResponseEvent = fromJson[APIGatewayProxyResponseEvent](responseEvent)
       response.getStatusCode shouldEqual HTTP_INTERNAL_ERROR
       response.getBody shouldEqual errorMessage
+    }
+
+    "update the stage with extra settings" in new Setup {
+      val importedRestApiId: String = UUID.randomUUID().toString
+      val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(importedRestApiId).build()
+      when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(apiGatewayResponse)
+      when(mockAPIGatewayClient.createDeployment(any[CreateDeploymentRequest])).thenReturn(CreateDeploymentResponse.builder().build())
+      val updateStageRequestCaptor: ArgumentCaptor[UpdateStageRequest] = ArgumentCaptor.forClass(classOf[UpdateStageRequest])
+      when(mockAPIGatewayClient.updateStage(updateStageRequestCaptor.capture())).thenReturn(UpdateStageResponse.builder().build())
+
+      val result: Either[Nothing, String] = addApiHandler.handle(inputBody, mockContext)
+
+      val capturedRequest: UpdateStageRequest = updateStageRequestCaptor.getValue
+      capturedRequest.restApiId shouldEqual importedRestApiId
+      capturedRequest.stageName shouldEqual "current"
+      val operations = capturedRequest.patchOperations.asScala
+      exactly(1, operations) should have('op(REPLACE), 'path("/*/*/metrics/enabled"), 'value("true"))
+      exactly(1, operations) should have('op(REPLACE), 'path("/*/*/logging/loglevel"), 'value("INFO"))
     }
   }
 }
