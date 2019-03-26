@@ -10,7 +10,8 @@ import io.swagger.models.{HttpMethod, Operation, Swagger}
 import io.swagger.parser.SwaggerParser
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
-import software.amazon.awssdk.services.apigateway.model.{CreateDeploymentRequest, ImportRestApiRequest, ImportRestApiResponse}
+import software.amazon.awssdk.services.apigateway.model.Op.REPLACE
+import software.amazon.awssdk.services.apigateway.model._
 import uk.gov.hmrc.apiplatform.addapi.ErrorRecovery.recovery
 
 import scala.collection.JavaConversions.mapAsJavaMap
@@ -38,6 +39,7 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient, environment: Map[String,
   def importApi(input: String): ImportRestApiResponse = {
     val importRestApiResponse = apiGatewayClient.importRestApi(buildImportApiRequest(input))
     apiGatewayClient.createDeployment(buildCreateDeploymentRequest(importRestApiResponse.id()))
+    apiGatewayClient.updateStage(buildUpdateStageRequest(importRestApiResponse.id()))
     importRestApiResponse
   }
 
@@ -54,6 +56,16 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient, environment: Map[String,
       .builder()
       .restApiId(restApiId)
       .stageName("current")
+      .build()
+  }
+
+  def buildUpdateStageRequest(restApiId: String): UpdateStageRequest = {
+    UpdateStageRequest
+      .builder()
+      .restApiId(restApiId)
+      .stageName("current")
+      .patchOperations(PatchOperation.builder().op(REPLACE).path("/*/*/metrics/enabled").value("true").build(),
+        PatchOperation.builder().op(REPLACE).path("/*/*/logging/loglevel").value("INFO").build())
       .build()
   }
 
