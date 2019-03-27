@@ -21,7 +21,7 @@ import scala.util.matching.Regex
 
 class AddApiHandler(apiGatewayClient: ApiGatewayClient, environment: Map[String, String]) extends Lambda[String, String] with JsonMapper {
 
-  val serviceNameRegex: Regex = "(.+)\\.protected\\.mdtp".r
+  val serviceNameRegex: Regex = """(.+)\.protected\.mdtp""".r
 
   def this() {
     this(ApiGatewayClient.create(), sys.env)
@@ -79,6 +79,7 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient, environment: Map[String,
       }
     }
     swagger.vendorExtension("x-amazon-apigateway-policy", amazonApigatewayPolicy(requestEvent))
+    swagger.vendorExtension("x-amazon-apigateway-gateway-responses", amazonApigatewayResponses)
   }
 
   def amazonApigatewayIntegration(host: String, path: String, operation: (HttpMethod, Operation)): Map[String, Object] = {
@@ -106,6 +107,14 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient, environment: Map[String,
       )
     )
   }
+
+  def amazonApigatewayResponses: Map[String, Object] = {
+    Map("MISSING_AUTHENTICATION_TOKEN" -> Map("statusCode" -> "404", "responseTemplates" ->
+        Map("application/json" -> """{"code": "MATCHING_RESOURCE_NOT_FOUND", "message": "A resource with the name in the request can not be found in the API"}""")),
+      "THROTTLED" -> Map("statusCode" -> "429", "responseTemplates" ->
+          Map("application/json" -> """{"code": "MESSAGE_THROTTLED_OUT", "message", "The request for the API is throttled as you have exceeded your quota."}""")))
+  }
+
 }
 
 case class AddApiResponse(restApiId: String)
