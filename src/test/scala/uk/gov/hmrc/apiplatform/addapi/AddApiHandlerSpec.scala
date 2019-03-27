@@ -60,6 +60,17 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
       capturedRequest.failOnWarnings shouldBe true
     }
 
+    "correctly convert OpenAPI JSON into ImportRestApiRequest with amazon extension for API gateway responses" in new Setup {
+      val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(UUID.randomUUID().toString).build()
+      val importRestApiRequestCaptor: ArgumentCaptor[ImportRestApiRequest] = ArgumentCaptor.forClass(classOf[ImportRestApiRequest])
+      when(mockAPIGatewayClient.importRestApi(importRestApiRequestCaptor.capture())).thenReturn(apiGatewayResponse)
+
+      val result: Either[Nothing, String] = addApiHandler.handle(inputBody, mockContext)
+
+      val capturedRequest: ImportRestApiRequest = importRestApiRequestCaptor.getValue
+      capturedRequest.body().asUtf8String() should include("x-amazon-apigateway-gateway-responses")
+    }
+
     "correctly convert OpenAPI JSON into ImportRestApiRequest with amazon extensions for API gateway integrations" in new Setup {
       val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(UUID.randomUUID().toString).build()
       val importRestApiRequestCaptor: ArgumentCaptor[ImportRestApiRequest] = ArgumentCaptor.forClass(classOf[ImportRestApiRequest])
