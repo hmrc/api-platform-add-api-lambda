@@ -155,6 +155,21 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
       val operations = capturedRequest.patchOperations.asScala
       exactly(1, operations) should have('op(REPLACE), 'path("/*/*/logging/loglevel"), 'value("INFO"))
     }
+
+    "correctly handle UnauthorizedException thrown by AWS SDK when updating stage with extra settings" in new Setup {
+      val errorMessage = "You're an idiot"
+      when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(ImportRestApiResponse.builder().id(UUID.randomUUID().toString).build())
+      when(mockAPIGatewayClient.createDeployment(any[CreateDeploymentRequest])).thenReturn(CreateDeploymentResponse.builder().build())
+      when(mockAPIGatewayClient.updateStage(any[UpdateStageRequest])).thenThrow(UnauthorizedException.builder().message(errorMessage).build())
+
+      val result: Either[Nothing, String] = addApiHandler.handle(inputBody, mockContext)
+
+      result.isRight shouldBe true
+      val Right(responseEvent) = result
+      val response: APIGatewayProxyResponseEvent = fromJson[APIGatewayProxyResponseEvent](responseEvent)
+      response.getStatusCode shouldEqual HTTP_INTERNAL_ERROR
+      response.getBody shouldEqual errorMessage
+    }
   }
 }
 
