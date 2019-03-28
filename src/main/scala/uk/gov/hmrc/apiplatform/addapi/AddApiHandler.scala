@@ -1,6 +1,6 @@
 package uk.gov.hmrc.apiplatform.addapi
 
-import java.net.HttpURLConnection.{HTTP_BAD_REQUEST, HTTP_OK}
+import java.net.HttpURLConnection.{HTTP_BAD_METHOD, HTTP_OK}
 
 import com.amazonaws.services.lambda.runtime.events.{APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent}
 import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
@@ -43,7 +43,8 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient,
     requestEvent.getHttpMethod match {
       case "POST" => restApiIdResponse(importApi(requestEvent))
       case "PUT" => restApiIdResponse(putApi(requestEvent))
-      case _ => Right(toJson(new APIGatewayProxyResponseEvent().withStatusCode(HTTP_BAD_REQUEST).withBody("Unsupported Method")))
+      case "DELETE" => restApiIdResponse(deleteApi(requestEvent))
+      case _ => Right(toJson(new APIGatewayProxyResponseEvent().withStatusCode(HTTP_BAD_METHOD).withBody("Unsupported Method")))
     }
   }
 
@@ -73,6 +74,13 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient,
     val putRestApiResponse: PutRestApiResponse = apiGatewayClient.putRestApi(putApiRequest)
     deploymentService.deployApi(putRestApiResponse.id())
     putRestApiResponse.id()
+  }
+
+  def deleteApi(requestEvent: APIGatewayProxyRequestEvent): String = {
+    val apiId = requestEvent.getPathParameters.get("api_id")
+    val deleteApiRequest = DeleteRestApiRequest.builder().restApiId(apiId).build()
+    apiGatewayClient.deleteRestApi(deleteApiRequest)
+    apiId
   }
 }
 
