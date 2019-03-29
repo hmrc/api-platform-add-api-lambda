@@ -1,6 +1,6 @@
 package uk.gov.hmrc.apiplatform.addapi
 
-import java.net.HttpURLConnection.{HTTP_INTERNAL_ERROR, HTTP_OK}
+import java.net.HttpURLConnection.{HTTP_OK, HTTP_UNAUTHORIZED}
 import java.util.UUID
 
 import com.amazonaws.services.lambda.runtime.events.{APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent}
@@ -81,7 +81,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
         result.isRight shouldBe true
         val Right(responseEvent) = result
         val response: APIGatewayProxyResponseEvent = fromJson[APIGatewayProxyResponseEvent](responseEvent)
-        response.getStatusCode shouldEqual HTTP_INTERNAL_ERROR
+        response.getStatusCode shouldEqual HTTP_UNAUTHORIZED
         response.getBody shouldEqual errorMessage
       }
     }
@@ -135,7 +135,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
         result.isRight shouldBe true
         val Right(responseEvent) = result
         val response: APIGatewayProxyResponseEvent = fromJson[APIGatewayProxyResponseEvent](responseEvent)
-        response.getStatusCode shouldEqual HTTP_INTERNAL_ERROR
+        response.getStatusCode shouldEqual HTTP_UNAUTHORIZED
         response.getBody shouldEqual errorMessage
       }
     }
@@ -165,7 +165,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
         result.isRight shouldBe true
         val Right(responseEvent) = result
         val response: APIGatewayProxyResponseEvent = fromJson[APIGatewayProxyResponseEvent](responseEvent)
-        response.getStatusCode shouldEqual HTTP_INTERNAL_ERROR
+        response.getStatusCode shouldEqual HTTP_UNAUTHORIZED
         response.getBody shouldEqual errorMessage
       }
     }
