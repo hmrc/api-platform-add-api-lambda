@@ -7,8 +7,9 @@ import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
 import software.amazon.awssdk.services.apigateway.model.PutMode.OVERWRITE
 import software.amazon.awssdk.services.apigateway.model.{PutRestApiResponse, _}
-import uk.gov.hmrc.apiplatform.addapi.AwsApiGatewayClient.awsApiGatewayClient
-import uk.gov.hmrc.apiplatform.addapi.ErrorRecovery.recovery
+import uk.gov.hmrc.api_platform_manage_api.{DeploymentService, SwaggerService}
+import uk.gov.hmrc.api_platform_manage_api.AwsApiGatewayClient.awsApiGatewayClient
+import uk.gov.hmrc.api_platform_manage_api.ErrorRecovery.recovery
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.ProxiedRequestHandler
 
 import scala.collection.JavaConversions.mapAsJavaMap
@@ -78,7 +79,3 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient,
 }
 
 case class AddApiResponse(restApiId: String)
-
-object AwsApiGatewayClient {
-  lazy val awsApiGatewayClient: ApiGatewayClient = ApiGatewayClient.create()
-}
