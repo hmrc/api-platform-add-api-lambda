@@ -15,7 +15,7 @@ class SwaggerService(environment: Map[String, String]) {
     this(sys.env)
   }
 
-  def swagger(requestEvent: APIGatewayProxyRequestEvent): Swagger = {
+  def createSwagger(requestEvent: APIGatewayProxyRequestEvent): Swagger = {
     val swagger: Swagger = new SwaggerParser().parse(requestEvent.getBody)
     swagger.getPaths.asScala foreach { path =>
       path._2.getOperationMap.asScala foreach { op =>

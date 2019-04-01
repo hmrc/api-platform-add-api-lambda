@@ -13,14 +13,14 @@ import software.amazon.awssdk.services.apigateway.model._
 
 import scala.collection.JavaConverters._
 
-class DeploymentServiceSpec extends WordSpecLike with Matchers with MockitoSugar with JsonMapper {
+class DeploymentServiceSpec extends WordSpecLike with Matchers with MockitoSugar {
 
   trait Setup {
     val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient]
     val deploymentService = new DeploymentService(mockAPIGatewayClient)
   }
 
-  "deploy" should {
+  "deployApi" should {
     "deploy the rest API" in new Setup {
       val importedRestApiId: String = UUID.randomUUID().toString
       val createDeploymentRequestCaptor: ArgumentCaptor[CreateDeploymentRequest] = ArgumentCaptor.forClass(classOf[CreateDeploymentRequest])

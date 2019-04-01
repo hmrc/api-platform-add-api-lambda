@@ -4,7 +4,6 @@ import java.net.HttpURLConnection.{HTTP_OK, HTTP_UNAUTHORIZED}
 import java.util.UUID
 
 import com.amazonaws.services.lambda.runtime.events.{APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent}
-import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
 import io.swagger.models.Swagger
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
@@ -15,13 +14,14 @@ import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
 import software.amazon.awssdk.services.apigateway.model.PutMode.OVERWRITE
 import software.amazon.awssdk.services.apigateway.model._
+import uk.gov.hmrc.aws_gateway_proxied_request_lambda.JsonMapper
+
+import scala.collection.JavaConversions.mapAsJavaMap
 
 class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar with JsonMapper {
 
   trait Setup {
-    val inputBody: String = InputBody().toString
-    val mockContext: Context = mock[Context]
-    when(mockContext.getLogger).thenReturn(mock[LambdaLogger])
+    val requestBody = """{"host": "api-example-microservice.protected.mdtp"}"""
     val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient]
     val mockSwaggerService: SwaggerService = mock[SwaggerService]
     val mockDeploymentService: DeploymentService = mock[DeploymentService]
@@ -35,24 +35,29 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
         val apiGatewayResponse: PutRestApiResponse = PutRestApiResponse.builder().id(id).build()
         when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
 
-        val result: Either[Nothing, String] = addApiHandler.handle(InputBody(httpMethod = "PUT", apiId = id).toString, mockContext)
+        val response: APIGatewayProxyResponseEvent = addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
+          .withHttpMethod("PUT")
+          .withPathParamters(mapAsJavaMap(Map("api_id" -> id)))
+          .withBody(requestBody)
+        )
 
-        result.isRight shouldBe true
-        val Right(responseEvent) = result
-        val response: APIGatewayProxyResponseEvent = fromJson[APIGatewayProxyResponseEvent](responseEvent)
         response.getStatusCode shouldEqual HTTP_OK
         response.getBody shouldEqual s"""{"restApiId":"$id"}"""
       }
 
-      "correctly convert OpenAPI JSON into PutRestApiRequest with correct configuration" in new Setup {
+      "correctly convert request event into PutRestApiRequest with correct configuration" in new Setup {
         val apiId: String = UUID.randomUUID().toString
         val apiGatewayResponse: PutRestApiResponse = PutRestApiResponse.builder().id(UUID.randomUUID().toString).build()
         val putRestApiRequestCaptor: ArgumentCaptor[PutRestApiRequest] = ArgumentCaptor.forClass(classOf[PutRestApiRequest])
         when(mockAPIGatewayClient.putRestApi(putRestApiRequestCaptor.capture())).thenReturn(apiGatewayResponse)
         val swagger: Swagger = new Swagger().host("localhost")
-        when(mockSwaggerService.swagger(any[APIGatewayProxyRequestEvent])).thenReturn(swagger)
+        when(mockSwaggerService.createSwagger(any[APIGatewayProxyRequestEvent])).thenReturn(swagger)
 
-        val result: Either[Nothing, String] = addApiHandler.handle(InputBody(httpMethod = "PUT", apiId = apiId).toString, mockContext)
+        addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
+          .withHttpMethod("PUT")
+          .withPathParamters(mapAsJavaMap(Map("api_id" -> apiId)))
+          .withBody(requestBody)
+        )
 
         val capturedRequest: PutRestApiRequest = putRestApiRequestCaptor.getValue
         capturedRequest.parameters should contain(Entry("endpointConfigurationTypes", "REGIONAL"))
@@ -67,7 +72,11 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
         val apiGatewayResponse: PutRestApiResponse = PutRestApiResponse.builder().id(apiId).build()
         when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
 
-        addApiHandler.handle(InputBody(httpMethod = "PUT", apiId = apiId).toString, mockContext)
+        addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
+          .withHttpMethod("PUT")
+          .withPathParamters(mapAsJavaMap(Map("api_id" -> apiId)))
+          .withBody(requestBody)
+        )
 
         verify(mockDeploymentService, times(1)).deployApi(apiId)
       }
@@ -76,11 +85,12 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
         val errorMessage = "You're an idiot"
         when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenThrow(UnauthorizedException.builder().message(errorMessage).build())
 
-        val result: Either[Nothing, String] = addApiHandler.handle(InputBody(httpMethod = "PUT", apiId = UUID.randomUUID().toString).toString, mockContext)
+        val response: APIGatewayProxyResponseEvent = addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
+          .withHttpMethod("PUT")
+          .withPathParamters(mapAsJavaMap(Map("api_id" -> UUID.randomUUID().toString)))
+          .withBody(requestBody)
+        )
 
-        result.isRight shouldBe true
-        val Right(responseEvent) = result
-        val response: APIGatewayProxyResponseEvent = fromJson[APIGatewayProxyResponseEvent](responseEvent)
         response.getStatusCode shouldEqual HTTP_UNAUTHORIZED
         response.getBody shouldEqual errorMessage
       }
@@ -92,23 +102,26 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
         val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(id).build()
         when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(apiGatewayResponse)
 
-        val result: Either[Nothing, String] = addApiHandler.handle(inputBody, mockContext)
+        val response: APIGatewayProxyResponseEvent = addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
+          .withHttpMethod("POST")
+          .withBody(requestBody)
+        )
 
-        result.isRight shouldBe true
-        val Right(responseEvent) = result
-        val response: APIGatewayProxyResponseEvent = fromJson[APIGatewayProxyResponseEvent](responseEvent)
         response.getStatusCode shouldEqual HTTP_OK
         response.getBody shouldEqual s"""{"restApiId":"$id"}"""
       }
 
-      "correctly convert OpenAPI JSON into ImportRestApiRequest with correct configuration" in new Setup {
+      "correctly convert request event into ImportRestApiRequest with correct configuration" in new Setup {
         val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(UUID.randomUUID().toString).build()
         val importRestApiRequestCaptor: ArgumentCaptor[ImportRestApiRequest] = ArgumentCaptor.forClass(classOf[ImportRestApiRequest])
         when(mockAPIGatewayClient.importRestApi(importRestApiRequestCaptor.capture())).thenReturn(apiGatewayResponse)
         val swagger: Swagger = new Swagger().host("localhost")
-        when(mockSwaggerService.swagger(any[APIGatewayProxyRequestEvent])).thenReturn(swagger)
+        when(mockSwaggerService.createSwagger(any[APIGatewayProxyRequestEvent])).thenReturn(swagger)
 
-        val result: Either[Nothing, String] = addApiHandler.handle(inputBody, mockContext)
+        addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
+          .withHttpMethod("POST")
+          .withBody(requestBody)
+        )
 
         val capturedRequest: ImportRestApiRequest = importRestApiRequestCaptor.getValue
         capturedRequest.parameters should contain(Entry("endpointConfigurationTypes", "REGIONAL"))
@@ -121,7 +134,10 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
         val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(apiId).build()
         when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(apiGatewayResponse)
 
-        addApiHandler.handle(inputBody, mockContext)
+        addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
+          .withHttpMethod("POST")
+          .withBody(requestBody)
+        )
 
         verify(mockDeploymentService, times(1)).deployApi(apiId)
       }
@@ -130,11 +146,11 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
         val errorMessage = "You're an idiot"
         when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenThrow(UnauthorizedException.builder().message(errorMessage).build())
 
-        val result: Either[Nothing, String] = addApiHandler.handle(inputBody, mockContext)
+        val response: APIGatewayProxyResponseEvent = addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
+          .withHttpMethod("POST")
+          .withBody(requestBody)
+        )
 
-        result.isRight shouldBe true
-        val Right(responseEvent) = result
-        val response: APIGatewayProxyResponseEvent = fromJson[APIGatewayProxyResponseEvent](responseEvent)
         response.getStatusCode shouldEqual HTTP_UNAUTHORIZED
         response.getBody shouldEqual errorMessage
       }
@@ -146,11 +162,11 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
         val apiGatewayResponse: DeleteRestApiResponse = DeleteRestApiResponse.builder().build()
         when(mockAPIGatewayClient.deleteRestApi(any[DeleteRestApiRequest])).thenReturn(apiGatewayResponse)
 
-        val result: Either[Nothing, String] = addApiHandler.handle(InputBody(httpMethod = "DELETE", apiId = id).toString, mockContext)
+        val response: APIGatewayProxyResponseEvent = addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
+          .withHttpMethod("DELETE")
+          .withPathParamters(mapAsJavaMap(Map("api_id" -> id)))
+        )
 
-        result.isRight shouldBe true
-        val Right(responseEvent) = result
-        val response: APIGatewayProxyResponseEvent = fromJson[APIGatewayProxyResponseEvent](responseEvent)
         response.getStatusCode shouldEqual HTTP_OK
         response.getBody shouldEqual s"""{"restApiId":"$id"}"""
       }
@@ -160,29 +176,14 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
         val id: String = UUID.randomUUID().toString
         when(mockAPIGatewayClient.deleteRestApi(any[DeleteRestApiRequest])).thenThrow(UnauthorizedException.builder().message(errorMessage).build())
 
-        val result: Either[Nothing, String] = addApiHandler.handle(InputBody(httpMethod = "DELETE", apiId = id).toString, mockContext)
+        val response: APIGatewayProxyResponseEvent = addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
+          .withHttpMethod("DELETE")
+          .withPathParamters(mapAsJavaMap(Map("api_id" -> id)))
+        )
 
-        result.isRight shouldBe true
-        val Right(responseEvent) = result
-        val response: APIGatewayProxyResponseEvent = fromJson[APIGatewayProxyResponseEvent](responseEvent)
         response.getStatusCode shouldEqual HTTP_UNAUTHORIZED
         response.getBody shouldEqual errorMessage
       }
     }
   }
-}
-
-case class InputBody(httpMethod: String = "POST", host: String = "api-example-microservice.protected.mdtp", apiId: String = "") {
-  override val toString: String = raw"""{
-                            |    "httpMethod": "$httpMethod",
-                            |    "pathParameters": {
-                            |        "api_id": "$apiId"
-                            |    },
-                            |    "requestContext": {
-                            |        "identity": {
-                            |            "sourceIp": "127.0.0.1"
-                            |        }
-                            |    },
-                            |    "body": "{\"host\": \"$host\", \"paths\": {\"/world\": {\"get\": {\"responses\": {\"200\": {\"description\": \"OK\"}},\"x-auth-type\": \"Application User\",\"x-throttling-tier\": \"Unlimited\",\"x-scope\": \"read:state-pension-calculation\"}}},\"info\": {\"title\": \"Test OpenAPI 2\",\"version\": \"1.0\"},\"swagger\": \"2.0\"}"
-                            |}""".stripMargin
 }

@@ -5,11 +5,11 @@ import java.net.HttpURLConnection._
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent
 import software.amazon.awssdk.services.apigateway.model._
 
-object ErrorRecovery extends JsonMapper {
+object ErrorRecovery {
 
   val TooManyRequests: Int = 429
 
-  def recovery: PartialFunction[Throwable, Either[Nothing, String]] = {
+  def recovery: PartialFunction[Throwable, APIGatewayProxyResponseEvent] = {
     case e: UnauthorizedException => exceptionResponse(HTTP_UNAUTHORIZED, e)
     case e: LimitExceededException => exceptionResponse(TooManyRequests, e)
     case e: BadRequestException => exceptionResponse(HTTP_BAD_REQUEST, e)
@@ -22,7 +22,7 @@ object ErrorRecovery extends JsonMapper {
     case e: Throwable => exceptionResponse(HTTP_INTERNAL_ERROR, e)
   }
 
-  def exceptionResponse(statusCode: Int, exception: Throwable) =
-    Right(toJson(new APIGatewayProxyResponseEvent().withStatusCode(statusCode).withBody(exception.getMessage)))
+  def exceptionResponse(statusCode: Int, exception: Throwable): APIGatewayProxyResponseEvent =
+    new APIGatewayProxyResponseEvent().withStatusCode(statusCode).withBody(exception.getMessage)
 
 }

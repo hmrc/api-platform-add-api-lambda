@@ -6,9 +6,8 @@ lazy val jacksonVersion = "2.9.8"
 lazy val compileDependencies = Seq(
   "io.github.mkotsur" %% "aws-lambda-scala" % "0.1.1",
   "software.amazon.awssdk" % "apigateway" % "2.5.13",
-  "com.fasterxml.jackson.core" % "jackson-databind" % jacksonVersion,
-  "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonVersion,
-  "io.swagger" % "swagger-parser" % "1.0.42"
+  "io.swagger" % "swagger-parser" % "1.0.42",
+  "uk.gov.hmrc" %% "aws-gateway-proxied-request-lambda" % "0.2.0"
 )
 
 lazy val testScope: String = "test"

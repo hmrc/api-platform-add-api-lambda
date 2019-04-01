@@ -3,55 +3,48 @@ package uk.gov.hmrc.apiplatform.addapi
 import java.net.HttpURLConnection.{HTTP_BAD_METHOD, HTTP_OK}
 
 import com.amazonaws.services.lambda.runtime.events.{APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent}
-import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
-import io.github.mkotsur.aws.handler.Lambda
-import io.github.mkotsur.aws.handler.Lambda._
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
 import software.amazon.awssdk.services.apigateway.model.PutMode.OVERWRITE
 import software.amazon.awssdk.services.apigateway.model.{PutRestApiResponse, _}
 import uk.gov.hmrc.apiplatform.addapi.AwsApiGatewayClient.awsApiGatewayClient
 import uk.gov.hmrc.apiplatform.addapi.ErrorRecovery.recovery
+import uk.gov.hmrc.aws_gateway_proxied_request_lambda.ProxiedRequestHandler
 
 import scala.collection.JavaConversions.mapAsJavaMap
+import scala.language.postfixOps
 import scala.util.Try
 
 class AddApiHandler(apiGatewayClient: ApiGatewayClient,
                     deploymentService: DeploymentService,
                     swaggerService: SwaggerService)
-  extends Lambda[String, String] with JsonMapper {
+  extends ProxiedRequestHandler {
 
-  val restApiIdResponse: String => Either[Nothing, String] = (restApiId: String) => {
-    Right(toJson(new APIGatewayProxyResponseEvent()
+  val restApiIdResponse: String => APIGatewayProxyResponseEvent = (restApiId: String) => {
+    new APIGatewayProxyResponseEvent()
       .withStatusCode(HTTP_OK)
       .withBody(toJson(AddApiResponse(restApiId)))
-    ))
   }
 
   def this() {
     this(awsApiGatewayClient, new DeploymentService(awsApiGatewayClient), new SwaggerService)
   }
 
-  override def handle(input: String, context: Context): Either[Nothing, String] = {
-    val logger: LambdaLogger = context.getLogger
-    logger.log(s"Input: $input")
-    Try(handleInput(input)) recover recovery get
-  }
-
-  def handleInput(input: String): Either[Nothing, String] = {
-    val requestEvent: APIGatewayProxyRequestEvent = fromJson[APIGatewayProxyRequestEvent](input)
-    requestEvent.getHttpMethod match {
-      case "POST" => restApiIdResponse(importApi(requestEvent))
-      case "PUT" => restApiIdResponse(putApi(requestEvent))
-      case "DELETE" => restApiIdResponse(deleteApi(requestEvent))
-      case _ => Right(toJson(new APIGatewayProxyResponseEvent().withStatusCode(HTTP_BAD_METHOD).withBody("Unsupported Method")))
-    }
+  override def handleInput(input: APIGatewayProxyRequestEvent): APIGatewayProxyResponseEvent = {
+    Try {
+      input.getHttpMethod match {
+        case "POST" => restApiIdResponse(importApi(input))
+        case "PUT" => restApiIdResponse(putApi(input))
+        case "DELETE" => restApiIdResponse(deleteApi(input))
+        case _ => new APIGatewayProxyResponseEvent().withStatusCode(HTTP_BAD_METHOD).withBody("Unsupported Method")
+      }
+    } recover recovery get
   }
 
   def importApi(requestEvent: APIGatewayProxyRequestEvent): String = {
     val importApiRequest: ImportRestApiRequest = ImportRestApiRequest
       .builder()
-      .body(fromUtf8String(toJson(swaggerService.swagger(requestEvent))))
+      .body(fromUtf8String(toJson(swaggerService.createSwagger(requestEvent))))
       .parameters(mapAsJavaMap(Map("endpointConfigurationTypes" -> "REGIONAL")))
       .failOnWarnings(true)
       .build()
@@ -64,7 +57,7 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient,
   def putApi(requestEvent: APIGatewayProxyRequestEvent): String = {
     val putApiRequest: PutRestApiRequest = PutRestApiRequest
       .builder()
-      .body(fromUtf8String(toJson(swaggerService.swagger(requestEvent))))
+      .body(fromUtf8String(toJson(swaggerService.createSwagger(requestEvent))))
       .parameters(mapAsJavaMap(Map("endpointConfigurationTypes" -> "REGIONAL")))
       .failOnWarnings(true)
       .mode(OVERWRITE)
