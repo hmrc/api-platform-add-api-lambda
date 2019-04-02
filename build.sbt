@@ -32,7 +32,8 @@ lazy val lambda = (project in file("."))
   .settings(
     assemblyJarName in assembly := s"$appName.zip",
     assemblyMergeStrategy in assembly := {
-      case path if path.endsWith("io.netty.versions.properties") => MergeStrategy.first
+      case path if path.endsWith("io.netty.versions.properties") => MergeStrategy.discard
+      case path if path.endsWith("BuildInfo$.class") => MergeStrategy.discard
       case path =>
         val oldStrategy = (assemblyMergeStrategy in assembly).value
         oldStrategy(path)
