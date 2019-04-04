@@ -1,11 +1,12 @@
 package uk.gov.hmrc.apiplatform.addapi
 
-import java.net.HttpURLConnection.HTTP_OK
+import java.net.HttpURLConnection._
 
+import com.amazonaws.services.lambda.runtime.Context
 import com.amazonaws.services.lambda.runtime.events.{APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent}
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
-import software.amazon.awssdk.services.apigateway.model.ImportRestApiRequest
+import software.amazon.awssdk.services.apigateway.model._
 import uk.gov.hmrc.api_platform_manage_api.AwsApiGatewayClient.awsApiGatewayClient
 import uk.gov.hmrc.api_platform_manage_api.ErrorRecovery.recovery
 import uk.gov.hmrc.api_platform_manage_api.{DeploymentService, SwaggerService}
@@ -25,8 +26,8 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient,
     this(awsApiGatewayClient, new DeploymentService(awsApiGatewayClient), new SwaggerService, sys.env)
   }
 
-  override def handleInput(input: APIGatewayProxyRequestEvent): APIGatewayProxyResponseEvent = {
-    Try(importApi(input)) recover recovery get
+  override def handleInput(input: APIGatewayProxyRequestEvent, context: Context): APIGatewayProxyResponseEvent = {
+    Try(importApi(input)) recover recovery(context.getLogger) get
   }
 
   def importApi(requestEvent: APIGatewayProxyRequestEvent): APIGatewayProxyResponseEvent = {

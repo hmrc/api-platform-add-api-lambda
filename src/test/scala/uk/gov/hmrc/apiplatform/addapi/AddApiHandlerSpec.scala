@@ -3,6 +3,7 @@ package uk.gov.hmrc.apiplatform.addapi
 import java.net.HttpURLConnection.{HTTP_OK, HTTP_UNAUTHORIZED}
 import java.util.UUID
 
+import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
 import com.amazonaws.services.lambda.runtime.events.{APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent}
 import io.swagger.models.Swagger
 import org.mockito.ArgumentCaptor
@@ -23,6 +24,8 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
     val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient]
     val mockSwaggerService: SwaggerService = mock[SwaggerService]
     val mockDeploymentService: DeploymentService = mock[DeploymentService]
+    val mockContext: Context = mock[Context]
+    when(mockContext.getLogger).thenReturn(mock[LambdaLogger])
   }
 
   trait StandardSetup extends Setup {
@@ -43,7 +46,8 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
 
       val response: APIGatewayProxyResponseEvent = addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
         .withHttpMethod("POST")
-        .withBody(requestBody)
+        .withBody(requestBody),
+        mockContext
       )
 
       response.getStatusCode shouldEqual HTTP_OK
@@ -59,7 +63,8 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
 
       addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
         .withHttpMethod("POST")
-        .withBody(requestBody)
+        .withBody(requestBody),
+        mockContext
       )
 
       val capturedRequest: ImportRestApiRequest = importRestApiRequestCaptor.getValue
@@ -75,7 +80,8 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
 
       addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
         .withHttpMethod("POST")
-        .withBody(requestBody)
+        .withBody(requestBody),
+        mockContext
       )
 
       val capturedRequest: ImportRestApiRequest = importRestApiRequestCaptor.getValue
@@ -89,7 +95,8 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
 
       addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
         .withHttpMethod("POST")
-        .withBody(requestBody)
+        .withBody(requestBody),
+        mockContext
       )
 
       verify(mockDeploymentService, times(1)).deployApi(apiId)
@@ -101,7 +108,8 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
 
       val response: APIGatewayProxyResponseEvent = addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
         .withHttpMethod("POST")
-        .withBody(requestBody)
+        .withBody(requestBody),
+        mockContext
       )
 
       response.getStatusCode shouldEqual HTTP_UNAUTHORIZED
