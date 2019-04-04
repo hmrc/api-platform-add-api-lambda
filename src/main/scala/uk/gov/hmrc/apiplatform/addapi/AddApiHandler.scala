@@ -6,9 +6,9 @@ import com.amazonaws.services.lambda.runtime.events.{APIGatewayProxyRequestEvent
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
 import software.amazon.awssdk.services.apigateway.model.ImportRestApiRequest
-import uk.gov.hmrc.api_platform_manage_api.{DeploymentService, SwaggerService}
 import uk.gov.hmrc.api_platform_manage_api.AwsApiGatewayClient.awsApiGatewayClient
 import uk.gov.hmrc.api_platform_manage_api.ErrorRecovery.recovery
+import uk.gov.hmrc.api_platform_manage_api.{DeploymentService, SwaggerService}
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.ProxiedRequestHandler
 
 import scala.collection.JavaConversions.mapAsJavaMap
@@ -17,11 +17,12 @@ import scala.util.Try
 
 class AddApiHandler(apiGatewayClient: ApiGatewayClient,
                     deploymentService: DeploymentService,
-                    swaggerService: SwaggerService)
+                    swaggerService: SwaggerService,
+                    environment: Map[String, String])
   extends ProxiedRequestHandler {
 
   def this() {
-    this(awsApiGatewayClient, new DeploymentService(awsApiGatewayClient), new SwaggerService)
+    this(awsApiGatewayClient, new DeploymentService(awsApiGatewayClient), new SwaggerService, sys.env)
   }
 
   override def handleInput(input: APIGatewayProxyRequestEvent): APIGatewayProxyResponseEvent = {
@@ -32,7 +33,7 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient,
     val importApiRequest: ImportRestApiRequest = ImportRestApiRequest
       .builder()
       .body(fromUtf8String(toJson(swaggerService.createSwagger(requestEvent))))
-      .parameters(mapAsJavaMap(Map("endpointConfigurationTypes" -> "REGIONAL")))
+      .parameters(mapAsJavaMap(Map("endpointConfigurationTypes" -> environment.getOrElse("endpoint_type", "PRIVATE"))))
       .failOnWarnings(true)
       .build()
 
