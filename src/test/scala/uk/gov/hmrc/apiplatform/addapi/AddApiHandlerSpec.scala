@@ -45,7 +45,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
   }
 
   "Add API Handler" should {
-    "send API specification to AWS endpoint and return the created id" in new StandardSetup {
+    "send API specification to AWS endpoint" in new StandardSetup {
       val id: String = UUID.randomUUID().toString
       val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(id).build()
       when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(apiGatewayResponse)
