@@ -96,5 +96,19 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
       val exception: UnauthorizedException = intercept[UnauthorizedException](addApiHandler.handleInput(sqsEvent, mockContext))
       exception.getMessage shouldEqual errorMessage
     }
+
+    "throw exception if the event has no messages" in new StandardSetup {
+      sqsEvent.setRecords(List())
+
+      val exception: IllegalArgumentException = intercept[IllegalArgumentException](addApiHandler.handleInput(sqsEvent, mockContext))
+      exception.getMessage shouldEqual "Invalid number of records: 0"
+    }
+
+    "throw exception if the event has multiple messages" in new StandardSetup {
+      sqsEvent.setRecords(List(message, message))
+
+      val exception: IllegalArgumentException = intercept[IllegalArgumentException](addApiHandler.handleInput(sqsEvent, mockContext))
+      exception.getMessage shouldEqual "Invalid number of records: 2"
+    }
   }
 }

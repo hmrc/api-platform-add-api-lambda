@@ -9,7 +9,7 @@ import uk.gov.hmrc.api_platform_manage_api.AwsApiGatewayClient.awsApiGatewayClie
 import uk.gov.hmrc.api_platform_manage_api.{DeploymentService, SwaggerService}
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.SqsHandler
 
-import scala.collection.JavaConversions.{mapAsJavaMap, _}
+import scala.collection.JavaConversions.mapAsJavaMap
 import scala.language.postfixOps
 
 class AddApiHandler(apiGatewayClient: ApiGatewayClient,
@@ -23,9 +23,12 @@ class AddApiHandler(apiGatewayClient: ApiGatewayClient,
   }
 
   override def handleInput(input: SQSEvent, context: Context): Unit = {
+    if (input.getRecords.size != 1) {
+      throw new IllegalArgumentException(s"Invalid number of records: ${input.getRecords.size}")
+    }
     val importApiRequest: ImportRestApiRequest = ImportRestApiRequest
       .builder()
-      .body(fromUtf8String(toJson(swaggerService.createSwagger(input.getRecords.toList.head.getBody))))
+      .body(fromUtf8String(toJson(swaggerService.createSwagger(input.getRecords.get(0).getBody))))
       .parameters(mapAsJavaMap(Map("endpointConfigurationTypes" -> environment.getOrElse("endpoint_type", "PRIVATE"))))
       .failOnWarnings(true)
       .build()
