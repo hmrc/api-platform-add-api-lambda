@@ -1,10 +1,10 @@
 package uk.gov.hmrc.apiplatform.addapi
 
-import java.net.HttpURLConnection.{HTTP_OK, HTTP_UNAUTHORIZED}
 import java.util.UUID
 
+import com.amazonaws.services.lambda.runtime.events.SQSEvent
+import com.amazonaws.services.lambda.runtime.events.SQSEvent.SQSMessage
 import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
-import com.amazonaws.services.lambda.runtime.events.{APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent}
 import io.swagger.models.Swagger
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
@@ -17,10 +17,16 @@ import software.amazon.awssdk.services.apigateway.model._
 import uk.gov.hmrc.api_platform_manage_api.{DeploymentService, SwaggerService}
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.JsonMapper
 
+import scala.collection.JavaConversions._
+
 class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar with JsonMapper {
 
   trait Setup {
     val requestBody = """{"host": "api-example-microservice.protected.mdtp"}"""
+    val message = new SQSMessage()
+    message.setBody(requestBody)
+    val sqsEvent = new SQSEvent()
+    sqsEvent.setRecords(List(message))
     val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient]
     val mockSwaggerService: SwaggerService = mock[SwaggerService]
     val mockDeploymentService: DeploymentService = mock[DeploymentService]
@@ -39,19 +45,12 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
   }
 
   "Add API Handler" should {
-    "send API specification to AWS endpoint and return the created id" in new StandardSetup {
+    "send API specification to AWS endpoint" in new StandardSetup {
       val id: String = UUID.randomUUID().toString
       val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(id).build()
       when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(apiGatewayResponse)
 
-      val response: APIGatewayProxyResponseEvent = addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
-        .withHttpMethod("POST")
-        .withBody(requestBody),
-        mockContext
-      )
-
-      response.getStatusCode shouldEqual HTTP_OK
-      response.getBody shouldEqual s"""{"restApiId":"$id"}"""
+      addApiHandler.handleInput(sqsEvent, mockContext)
     }
 
     "correctly convert request event into ImportRestApiRequest with correct configuration" in new StandardSetup {
@@ -59,13 +58,9 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
       val importRestApiRequestCaptor: ArgumentCaptor[ImportRestApiRequest] = ArgumentCaptor.forClass(classOf[ImportRestApiRequest])
       when(mockAPIGatewayClient.importRestApi(importRestApiRequestCaptor.capture())).thenReturn(apiGatewayResponse)
       val swagger: Swagger = new Swagger().host("localhost")
-      when(mockSwaggerService.createSwagger(any[APIGatewayProxyRequestEvent])).thenReturn(swagger)
+      when(mockSwaggerService.createSwagger(any[String])).thenReturn(swagger)
 
-      addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
-        .withHttpMethod("POST")
-        .withBody(requestBody),
-        mockContext
-      )
+      addApiHandler.handleInput(sqsEvent, mockContext)
 
       val capturedRequest: ImportRestApiRequest = importRestApiRequestCaptor.getValue
       capturedRequest.parameters should contain(Entry("endpointConfigurationTypes", "REGIONAL"))
@@ -78,11 +73,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
       val importRestApiRequestCaptor: ArgumentCaptor[ImportRestApiRequest] = ArgumentCaptor.forClass(classOf[ImportRestApiRequest])
       when(mockAPIGatewayClient.importRestApi(importRestApiRequestCaptor.capture())).thenReturn(apiGatewayResponse)
 
-      addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
-        .withHttpMethod("POST")
-        .withBody(requestBody),
-        mockContext
-      )
+      addApiHandler.handleInput(sqsEvent, mockContext)
 
       val capturedRequest: ImportRestApiRequest = importRestApiRequestCaptor.getValue
       capturedRequest.parameters should contain(Entry("endpointConfigurationTypes", "PRIVATE"))
@@ -93,27 +84,31 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
       val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(apiId).build()
       when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(apiGatewayResponse)
 
-      addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
-        .withHttpMethod("POST")
-        .withBody(requestBody),
-        mockContext
-      )
+      addApiHandler.handleInput(sqsEvent, mockContext)
 
       verify(mockDeploymentService, times(1)).deployApi(apiId)
     }
 
-    "correctly handle UnauthorizedException thrown by AWS SDK when importing API" in new StandardSetup {
+    "propagate UnauthorizedException thrown by AWS SDK when importing API" in new StandardSetup {
       val errorMessage = "You're an idiot"
       when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenThrow(UnauthorizedException.builder().message(errorMessage).build())
 
-      val response: APIGatewayProxyResponseEvent = addApiHandler.handleInput(new APIGatewayProxyRequestEvent()
-        .withHttpMethod("POST")
-        .withBody(requestBody),
-        mockContext
-      )
+      val exception: UnauthorizedException = intercept[UnauthorizedException](addApiHandler.handleInput(sqsEvent, mockContext))
+      exception.getMessage shouldEqual errorMessage
+    }
 
-      response.getStatusCode shouldEqual HTTP_UNAUTHORIZED
-      response.getBody shouldEqual errorMessage
+    "throw exception if the event has no messages" in new StandardSetup {
+      sqsEvent.setRecords(List())
+
+      val exception: IllegalArgumentException = intercept[IllegalArgumentException](addApiHandler.handleInput(sqsEvent, mockContext))
+      exception.getMessage shouldEqual "Invalid number of records: 0"
+    }
+
+    "throw exception if the event has multiple messages" in new StandardSetup {
+      sqsEvent.setRecords(List(message, message))
+
+      val exception: IllegalArgumentException = intercept[IllegalArgumentException](addApiHandler.handleInput(sqsEvent, mockContext))
+      exception.getMessage shouldEqual "Invalid number of records: 2"
     }
   }
 }
