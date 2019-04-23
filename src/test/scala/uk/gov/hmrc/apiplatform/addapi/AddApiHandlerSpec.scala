@@ -5,7 +5,7 @@ import java.util.UUID
 import com.amazonaws.services.lambda.runtime.events.SQSEvent
 import com.amazonaws.services.lambda.runtime.events.SQSEvent.SQSMessage
 import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
-import io.swagger.models.Swagger
+import io.swagger.models.{Info, Swagger}
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{times, verify, when}
@@ -22,43 +22,47 @@ import scala.collection.JavaConversions._
 class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar with JsonMapper {
 
   trait Setup {
-    val requestBody = """{"host": "api-example-microservice.protected.mdtp"}"""
+    val apiId: String = UUID.randomUUID().toString
+    val apiName = "foo--1.0"
+    val requestBody = s"""{"host": "localhost", "info": {"title": "$apiName"}}"""
     val message = new SQSMessage()
     message.setBody(requestBody)
     val sqsEvent = new SQSEvent()
     sqsEvent.setRecords(List(message))
+
     val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient]
     val mockSwaggerService: SwaggerService = mock[SwaggerService]
     val mockDeploymentService: DeploymentService = mock[DeploymentService]
     val mockContext: Context = mock[Context]
     when(mockContext.getLogger).thenReturn(mock[LambdaLogger])
+    when(mockAPIGatewayClient.getRestApis(any[GetRestApisRequest])).thenReturn(buildNonMatchingRestApisResponse(3))
+
+    val swagger: Swagger = new Swagger().host("localhost").info(new Info().title(apiName))
+    when(mockSwaggerService.createSwagger(any[String])).thenReturn(swagger)
   }
 
   trait StandardSetup extends Setup {
     val environment: Map[String, String] = Map("endpoint_type" -> "REGIONAL")
-    val addApiHandler = new AddApiHandler(mockAPIGatewayClient, mockDeploymentService, mockSwaggerService, environment)
+    val addApiHandler = new UpsertApiHandler(mockAPIGatewayClient, mockDeploymentService, mockSwaggerService, environment)
   }
 
   trait SetupWithoutEndpointType extends Setup {
     val environment: Map[String, String] = Map()
-    val addApiHandler = new AddApiHandler(mockAPIGatewayClient, mockDeploymentService, mockSwaggerService, environment)
+    val addApiHandler = new UpsertApiHandler(mockAPIGatewayClient, mockDeploymentService, mockSwaggerService, environment)
   }
 
   "Add API Handler" should {
     "send API specification to AWS endpoint" in new StandardSetup {
-      val id: String = UUID.randomUUID().toString
-      val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(id).build()
+      val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(apiId).build()
       when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(apiGatewayResponse)
 
       addApiHandler.handleInput(sqsEvent, mockContext)
     }
 
     "correctly convert request event into ImportRestApiRequest with correct configuration" in new StandardSetup {
-      val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(UUID.randomUUID().toString).build()
+      val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(apiId).build()
       val importRestApiRequestCaptor: ArgumentCaptor[ImportRestApiRequest] = ArgumentCaptor.forClass(classOf[ImportRestApiRequest])
       when(mockAPIGatewayClient.importRestApi(importRestApiRequestCaptor.capture())).thenReturn(apiGatewayResponse)
-      val swagger: Swagger = new Swagger().host("localhost")
-      when(mockSwaggerService.createSwagger(any[String])).thenReturn(swagger)
 
       addApiHandler.handleInput(sqsEvent, mockContext)
 
@@ -69,7 +73,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
     }
 
     "default to PRIVATE if no endpoint type specified in the environment" in new SetupWithoutEndpointType {
-      val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(UUID.randomUUID().toString).build()
+      val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(apiId).build()
       val importRestApiRequestCaptor: ArgumentCaptor[ImportRestApiRequest] = ArgumentCaptor.forClass(classOf[ImportRestApiRequest])
       when(mockAPIGatewayClient.importRestApi(importRestApiRequestCaptor.capture())).thenReturn(apiGatewayResponse)
 
@@ -80,7 +84,6 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
     }
 
     "deploy API" in new StandardSetup {
-      val apiId: String = UUID.randomUUID().toString
       val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(apiId).build()
       when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(apiGatewayResponse)
 
@@ -110,5 +113,13 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
       val exception: IllegalArgumentException = intercept[IllegalArgumentException](addApiHandler.handleInput(sqsEvent, mockContext))
       exception.getMessage shouldEqual "Invalid number of records: 2"
     }
+  }
+
+  def buildNonMatchingRestApisResponse(count: Int): GetRestApisResponse = {
+    val items: Seq[RestApi] = (1 to count).map(c => RestApi.builder().id(s"$c").name(s"Item $c").build())
+
+    GetRestApisResponse.builder()
+      .items(seqAsJavaList(items))
+      .build()
   }
 }
