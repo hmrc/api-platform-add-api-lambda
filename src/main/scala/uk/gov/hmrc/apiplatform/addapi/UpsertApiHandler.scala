@@ -1,6 +1,6 @@
 package uk.gov.hmrc.apiplatform.addapi
 
-import com.amazonaws.services.lambda.runtime.Context
+import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
 import com.amazonaws.services.lambda.runtime.events.SQSEvent
 import io.swagger.models.Swagger
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
@@ -27,11 +27,13 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
   }
 
   override def handleInput(input: SQSEvent, context: Context): Unit = {
+    val logger: LambdaLogger = context.getLogger
     if (input.getRecords.size != 1) {
       throw new IllegalArgumentException(s"Invalid number of records: ${input.getRecords.size}")
     }
 
     val swagger: Swagger = swaggerService.createSwagger(input.getRecords.get(0).getBody)
+    logger.log(s"Created swagger: ${toJson(swagger)}")
     getAwsIdByApiName(swagger.getInfo.getTitle) match {
       case Some(restApiId) => putApi(restApiId, swagger)
       case None => importApi(swagger)
