@@ -15,11 +15,16 @@ pipeline {
                 }
             }
             steps {
-                sh script: "sbt assembly"
+                sh(script: "sbt assembly")
+                stash(
+                    name: 'artefact',
+                    includes: target_file
+                )
             }
         }
         stage('Generate sha256') {
             steps {
+                unstash(name: 'artefact')
                 sh("openssl dgst -sha256 -binary ${target_file} | openssl enc -base64 > ${env.JOB_BASE_NAME}.zip.base64sha256")
             }
         }
