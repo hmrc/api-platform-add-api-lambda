@@ -35,12 +35,12 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
     val swagger: Swagger = swaggerService.createSwagger(input.getRecords.get(0).getBody)
     logger.log(s"Created swagger: ${toJson(swagger)}")
     getAwsRestApiIdByApiName(swagger.getInfo.getTitle) match {
-      case Some(restApiId) => putApi(restApiId, swagger)
-      case None => importApi(swagger)
+      case Some(restApiId) => putApi(restApiId, swagger, logger)
+      case None => importApi(swagger, logger)
     }
   }
 
-  private def putApi(restApiId: String, swagger: Swagger): Unit = {
+  private def putApi(restApiId: String, swagger: Swagger, logger: LambdaLogger): Unit = {
 
     val putApiRequest: PutRestApiRequest = PutRestApiRequest
       .builder()
@@ -50,8 +50,11 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
       .restApiId(restApiId)
       .build()
 
+    logger.log(s"Updating API ${swagger.getInfo.getTitle}")
     val putRestApiResponse: PutRestApiResponse = apiGatewayClient.putRestApi(putApiRequest)
+    logger.log(s"Ensuring endpoint type for API: ${swagger.getInfo.getTitle}")
     ensureEndpointType(restApiId)
+    logger.log(s"Deploying API: ${swagger.getInfo.getTitle}")
     deploymentService.deployApi(putRestApiResponse.id())
   }
 
@@ -76,7 +79,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
     }
   }
 
-  private def importApi(swagger: Swagger): Unit = {
+  private def importApi(swagger: Swagger, logger: LambdaLogger): Unit = {
     val importApiRequest: ImportRestApiRequest = ImportRestApiRequest
       .builder()
       .body(fromUtf8String(toJson(swagger)))
@@ -84,7 +87,9 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
       .failOnWarnings(true)
       .build()
 
+    logger.log(s"Importing API: ${swagger.getInfo.getTitle}")
     val importRestApiResponse = apiGatewayClient.importRestApi(importApiRequest)
+    logger.log(s"Deploying API: ${swagger.getInfo.getTitle}")
     deploymentService.deployApi(importRestApiResponse.id())
   }
 }
