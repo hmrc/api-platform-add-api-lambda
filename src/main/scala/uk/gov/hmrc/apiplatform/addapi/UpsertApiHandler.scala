@@ -34,7 +34,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
 
     val swagger: Swagger = swaggerService.createSwagger(input.getRecords.get(0).getBody)
     logger.log(s"Created swagger: ${toJson(swagger)}")
-    getAwsRestApiIdByApiName(swagger.getInfo.getTitle, logger) match {
+    getAwsRestApiIdByApiName(swagger.getInfo.getTitle) match {
       case Some(restApiId) => putApi(restApiId, swagger, logger)
       case None => importApi(swagger, logger)
     }
