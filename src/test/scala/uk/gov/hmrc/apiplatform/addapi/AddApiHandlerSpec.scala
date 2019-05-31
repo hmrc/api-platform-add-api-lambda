@@ -24,6 +24,8 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
   trait Setup {
     val apiId: String = UUID.randomUUID().toString
     val apiName = "foo--1.0"
+    val version = "1.0"
+    val context = "a/context"
     val requestBody = s"""{"host": "localhost", "info": {"title": "$apiName"}}"""
     val message = new SQSMessage()
     message.setBody(requestBody)
@@ -37,7 +39,10 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
     when(mockContext.getLogger).thenReturn(mock[LambdaLogger])
     when(mockAPIGatewayClient.getRestApis(any[GetRestApisRequest])).thenReturn(buildNonMatchingRestApisResponse(3))
 
-    val swagger: Swagger = new Swagger().host("localhost").info(new Info().title(apiName))
+    val swagger: Swagger = new Swagger().
+      host("localhost").
+      info(new Info().title(apiName).version(version)).
+      basePath(s"/$context")
     when(mockSwaggerService.createSwagger(any[String])).thenReturn(swagger)
   }
 
@@ -89,7 +94,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
 
       addApiHandler.handleInput(sqsEvent, mockContext)
 
-      verify(mockDeploymentService, times(1)).deployApi(apiId)
+      verify(mockDeploymentService, times(1)).deployApi(apiId, context, version)
     }
 
     "propagate UnauthorizedException thrown by AWS SDK when importing API" in new StandardSetup {
