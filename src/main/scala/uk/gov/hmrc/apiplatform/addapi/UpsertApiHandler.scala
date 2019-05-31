@@ -27,7 +27,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
   }
 
   override def handleInput(input: SQSEvent, context: Context): Unit = {
-    val logger: LambdaLogger = context.getLogger
+    implicit val logger: LambdaLogger = context.getLogger
     if (input.getRecords.size != 1) {
       throw new IllegalArgumentException(s"Invalid number of records: ${input.getRecords.size}")
     }
@@ -35,12 +35,12 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
     val swagger: Swagger = swaggerService.createSwagger(input.getRecords.get(0).getBody)
     logger.log(s"Created swagger: ${toJson(swagger)}")
     getAwsRestApiIdByApiName(swagger.getInfo.getTitle) match {
-      case Some(restApiId) => putApi(restApiId, swagger, logger)
-      case None => importApi(swagger, logger)
+      case Some(restApiId) => putApi(restApiId, swagger)
+      case None => importApi(swagger)
     }
   }
 
-  private def putApi(restApiId: String, swagger: Swagger, logger: LambdaLogger): Unit = {
+  private def putApi(restApiId: String, swagger: Swagger)(implicit logger: LambdaLogger): Unit = {
 
     val putApiRequest: PutRestApiRequest = PutRestApiRequest
       .builder()
@@ -54,8 +54,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
     val putRestApiResponse: PutRestApiResponse = apiGatewayClient.putRestApi(putApiRequest)
     logger.log(s"Ensuring endpoint type for API: ${swagger.getInfo.getTitle}")
     ensureEndpointType(restApiId)
-    logger.log(s"Deploying API: ${swagger.getInfo.getTitle}")
-    deploymentService.deployApi(putRestApiResponse.id())
+    deployApi(putRestApiResponse.id(), swagger)
   }
 
   private def ensureEndpointType(restApiId: String): Unit = {
@@ -79,7 +78,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
     }
   }
 
-  private def importApi(swagger: Swagger, logger: LambdaLogger): Unit = {
+  private def importApi(swagger: Swagger)(implicit logger: LambdaLogger): Unit = {
     val importApiRequest: ImportRestApiRequest = ImportRestApiRequest
       .builder()
       .body(fromUtf8String(toJson(swagger)))
@@ -89,7 +88,11 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
 
     logger.log(s"Importing API: ${swagger.getInfo.getTitle}")
     val importRestApiResponse = apiGatewayClient.importRestApi(importApiRequest)
+    deployApi(importRestApiResponse.id(), swagger)
+  }
+
+  private def deployApi(restApiId: String, swagger: Swagger)(implicit logger: LambdaLogger): Unit = {
     logger.log(s"Deploying API: ${swagger.getInfo.getTitle}")
-    deploymentService.deployApi(importRestApiResponse.id())
+    deploymentService.deployApi(restApiId, swagger.getBasePath.stripPrefix("/"), swagger.getInfo.getVersion)
   }
 }
