@@ -65,14 +65,22 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
   "Update API Handler" should {
     "send API specification to AWS endpoint and return the updated API id" in new StandardSetup {
       val id: String = UUID.randomUUID().toString
-      val apiGatewayResponse: PutRestApiResponse = PutRestApiResponse.builder().id(id).build()
+      val apiGatewayResponse: PutRestApiResponse =
+        PutRestApiResponse.builder()
+          .id(id)
+          .endpointConfiguration(EndpointConfiguration.builder().types(PRIVATE).build())
+          .build()
       when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
 
       updateApiHandler.handleInput(sqsEvent, mockContext)
     }
 
     "correctly convert request event into PutRestApiRequest with correct configuration" in new StandardSetup {
-      val apiGatewayResponse: PutRestApiResponse = PutRestApiResponse.builder().id(apiId).build()
+      val apiGatewayResponse: PutRestApiResponse =
+        PutRestApiResponse.builder()
+          .id(apiId)
+          .endpointConfiguration(EndpointConfiguration.builder().types(PRIVATE).build())
+          .build()
       val putRestApiRequestCaptor: ArgumentCaptor[PutRestApiRequest] = ArgumentCaptor.forClass(classOf[PutRestApiRequest])
       when(mockAPIGatewayClient.putRestApi(putRestApiRequestCaptor.capture())).thenReturn(apiGatewayResponse)
 
@@ -86,11 +94,14 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
     }
 
     "update the endpoint type if the new value doesn't match the current one in AWS" in new StandardSetup {
-      when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(PutRestApiResponse.builder().id(apiId).build())
+      val apiGatewayResponse: PutRestApiResponse =
+        PutRestApiResponse.builder()
+          .id(apiId)
+          .endpointConfiguration(EndpointConfiguration.builder().types(PRIVATE).build())
+          .build()
+      when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
       val updateRestApiRequestCaptor: ArgumentCaptor[UpdateRestApiRequest] = ArgumentCaptor.forClass(classOf[UpdateRestApiRequest])
       when(mockAPIGatewayClient.updateRestApi(updateRestApiRequestCaptor.capture())).thenReturn(UpdateRestApiResponse.builder().build())
-      when(mockAPIGatewayClient.getRestApi(any[GetRestApiRequest]))
-        .thenReturn(GetRestApiResponse.builder().endpointConfiguration(EndpointConfiguration.builder().types(PRIVATE).build()).build())
 
       updateApiHandler.handleInput(sqsEvent, mockContext)
 
@@ -102,7 +113,12 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
     }
 
     "not update the endpoint type if the new value matches the current one in AWS" in new StandardSetup {
-      when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(PutRestApiResponse.builder().id(apiId).build())
+      val apiGatewayResponse: PutRestApiResponse =
+        PutRestApiResponse.builder()
+          .id(apiId)
+          .endpointConfiguration(EndpointConfiguration.builder().types(REGIONAL).build())
+          .build()
+      when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
 
       updateApiHandler.handleInput(sqsEvent, mockContext)
 
@@ -110,7 +126,12 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
     }
 
     "default to PRIVATE if no endpoint type specified in the environment" in new SetupWithoutEndpointType {
-      when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(PutRestApiResponse.builder().id(apiId).build())
+      val apiGatewayResponse: PutRestApiResponse =
+        PutRestApiResponse.builder()
+          .id(apiId)
+          .endpointConfiguration(EndpointConfiguration.builder().types(REGIONAL).build())
+          .build()
+      when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
       val updateRestApiRequestCaptor: ArgumentCaptor[UpdateRestApiRequest] = ArgumentCaptor.forClass(classOf[UpdateRestApiRequest])
       when(mockAPIGatewayClient.updateRestApi(updateRestApiRequestCaptor.capture())).thenReturn(UpdateRestApiResponse.builder().build())
 
@@ -124,7 +145,11 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
     }
 
     "deploy API" in new StandardSetup {
-      val apiGatewayResponse: PutRestApiResponse = PutRestApiResponse.builder().id(apiId).build()
+      val apiGatewayResponse: PutRestApiResponse =
+        PutRestApiResponse.builder()
+          .id(apiId)
+          .endpointConfiguration(EndpointConfiguration.builder().types(PRIVATE).build())
+          .build()
       when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
 
       updateApiHandler.handleInput(sqsEvent, mockContext)
