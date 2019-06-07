@@ -53,17 +53,18 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
     logger.log(s"Updating API ${swagger.getInfo.getTitle}")
     val putRestApiResponse: PutRestApiResponse = apiGatewayClient.putRestApi(putApiRequest)
     logger.log(s"Ensuring endpoint type for API: ${swagger.getInfo.getTitle}")
-    ensureEndpointType(restApiId)
+    ensureEndpointType(restApiId, putRestApiResponse.endpointConfiguration(), environment.getOrElse("endpoint_type", "PRIVATE"))
     deployApi(putRestApiResponse.id(), swagger)
   }
 
-  private def ensureEndpointType(restApiId: String): Unit = {
-    val endpointType: String = environment.getOrElse("endpoint_type", "PRIVATE")
+  private def ensureEndpointType(restApiId: String,
+                                 endpointConfiguration: EndpointConfiguration,
+                                 requiredEndpointType: String)
+                                (implicit logger: LambdaLogger): Unit = {
+    val currentEndpointType: String = endpointConfiguration.typesAsStrings().asScala.head
 
-    val restApi = apiGatewayClient.getRestApi(GetRestApiRequest.builder().restApiId(restApiId).build())
-    val currentEndpointType: String = restApi.endpointConfiguration().typesAsStrings().asScala.head
-
-    if (currentEndpointType != endpointType) {
+    if (currentEndpointType != requiredEndpointType) {
+      logger.log(s"Updating Endpoint Type from [$currentEndpointType] to [$requiredEndpointType]")
       val updateRestApiRequest: UpdateRestApiRequest = UpdateRestApiRequest
         .builder()
         .restApiId(restApiId)
@@ -71,7 +72,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
           .builder()
           .op(REPLACE)
           .path(s"/endpointConfiguration/types/$currentEndpointType")
-          .value(endpointType)
+          .value(requiredEndpointType)
           .build())
         .build()
       apiGatewayClient.updateRestApi(updateRestApiRequest)
