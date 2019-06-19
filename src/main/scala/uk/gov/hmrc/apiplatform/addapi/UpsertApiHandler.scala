@@ -95,5 +95,30 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
   private def deployApi(restApiId: String, swagger: Swagger)(implicit logger: LambdaLogger): Unit = {
     logger.log(s"Deploying API: ${swagger.getInfo.getTitle}")
     deploymentService.deployApi(restApiId, swagger.getBasePath.stripPrefix("/"), swagger.getInfo.getVersion)
+    addApiToUsagePlans(restApiId)
+  }
+
+  private def addApiToUsagePlans(restApiId: String)(implicit logger: LambdaLogger): Unit = {
+    val usagePlanIds: Map[String, String] = fromJson[Map[String, String]](environment.getOrElse("usage_plans", "{}"))
+
+    usagePlanIds.values foreach { usagePlanId =>
+      val existingSubscriptions: Seq[String] = apiGatewayClient
+        .getUsagePlan(GetUsagePlanRequest.builder().usagePlanId(usagePlanId).build())
+        .apiStages().asScala
+        .map(_.apiId)
+
+      if (existingSubscriptions.contains(restApiId)) {
+        logger.log(s"API $restApiId already present in usage plan $usagePlanId")
+      } else {
+        logger.log(s"Adding API $restApiId to usage plan $usagePlanId")
+        val patchOperations = Seq(PatchOperation.builder().op(Op.ADD).path("/apiStages").value(s"$restApiId:current").build())
+
+        apiGatewayClient.updateUsagePlan(
+          UpdateUsagePlanRequest.builder()
+            .usagePlanId(usagePlanId)
+            .patchOperations(patchOperations.asJava)
+            .build())
+      }
+    }
   }
 }

@@ -14,7 +14,7 @@ import org.scalatest.mockito.MockitoSugar
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
 import software.amazon.awssdk.services.apigateway.model.EndpointType.{PRIVATE, REGIONAL}
-import software.amazon.awssdk.services.apigateway.model.Op.REPLACE
+import software.amazon.awssdk.services.apigateway.model.Op.{ADD, REPLACE}
 import software.amazon.awssdk.services.apigateway.model.PutMode.OVERWRITE
 import software.amazon.awssdk.services.apigateway.model._
 import uk.gov.hmrc.api_platform_manage_api.{DeploymentService, SwaggerService}
@@ -26,6 +26,7 @@ import scala.collection.JavaConverters._
 class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar with JsonMapper {
 
   trait Setup {
+    val usagePlans: Map[String, String] = Map("BRONZE" -> "1", "SILVER" -> "2")
     val apiId: String = UUID.randomUUID().toString
     val apiName = "foo--1.0"
     val version = "1.0"
@@ -44,6 +45,7 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
     when(mockAPIGatewayClient.getRestApi(any[GetRestApiRequest]))
       .thenReturn(GetRestApiResponse.builder().endpointConfiguration(EndpointConfiguration.builder().types(REGIONAL).build()).build())
     when(mockAPIGatewayClient.getRestApis(any[GetRestApisRequest])).thenReturn(buildMatchingRestApisResponse(apiId, apiName))
+    when(mockAPIGatewayClient.getUsagePlan(any[GetUsagePlanRequest])).thenReturn(GetUsagePlanResponse.builder().build())
 
     val swagger: Swagger = new Swagger().
       host("localhost").
@@ -53,7 +55,7 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
   }
 
   trait StandardSetup extends Setup {
-    val environment: Map[String, String] = Map("endpoint_type" -> "REGIONAL")
+    val environment: Map[String, String] = Map("endpoint_type" -> "REGIONAL", "usage_plans" -> toJson(usagePlans))
     val updateApiHandler = new UpsertApiHandler(mockAPIGatewayClient, mockDeploymentService, mockSwaggerService, environment)
   }
 
@@ -155,6 +157,47 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
       updateApiHandler.handleInput(sqsEvent, mockContext)
 
       verify(mockDeploymentService, times(1)).deployApi(apiId, context, version)
+    }
+
+    "add the API to usage plans" in new StandardSetup {
+      val apiGatewayResponse: PutRestApiResponse =
+        PutRestApiResponse.builder()
+          .id(apiId)
+          .endpointConfiguration(EndpointConfiguration.builder().types(PRIVATE).build())
+          .build()
+      when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
+      val updateUsagePlanRequestCaptor: ArgumentCaptor[UpdateUsagePlanRequest] = ArgumentCaptor.forClass(classOf[UpdateUsagePlanRequest])
+      when(mockAPIGatewayClient.updateUsagePlan(updateUsagePlanRequestCaptor.capture())).thenReturn(UpdateUsagePlanResponse.builder().build())
+
+      updateApiHandler.handleInput(sqsEvent, mockContext)
+
+      val capturedRequests: Seq[UpdateUsagePlanRequest] = updateUsagePlanRequestCaptor.getAllValues.asScala
+      capturedRequests should have size 2
+      capturedRequests.head.usagePlanId() shouldBe usagePlans("BRONZE")
+      capturedRequests.head.patchOperations() should contain only PatchOperation.builder().op(ADD).path("/apiStages").value(s"$apiId:current").build()
+      capturedRequests(1).usagePlanId() shouldBe usagePlans("SILVER")
+      capturedRequests(1).patchOperations() should contain only PatchOperation.builder().op(ADD).path("/apiStages").value(s"$apiId:current").build()
+    }
+
+    "not add the API to usage plans that already contain the API" in new StandardSetup {
+      val apiGatewayResponse: PutRestApiResponse =
+        PutRestApiResponse.builder()
+          .id(apiId)
+          .endpointConfiguration(EndpointConfiguration.builder().types(PRIVATE).build())
+          .build()
+      when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
+      val updateUsagePlanRequestCaptor: ArgumentCaptor[UpdateUsagePlanRequest] = ArgumentCaptor.forClass(classOf[UpdateUsagePlanRequest])
+      when(mockAPIGatewayClient.updateUsagePlan(updateUsagePlanRequestCaptor.capture())).thenReturn(UpdateUsagePlanResponse.builder().build())
+      val getUsagePlanResponseForBronze: GetUsagePlanResponse = GetUsagePlanResponse.builder().build()
+      val getUsagePlanResponseForSilver: GetUsagePlanResponse = GetUsagePlanResponse.builder().apiStages(ApiStage.builder().apiId(apiId).stage("current").build()).build()
+      when(mockAPIGatewayClient.getUsagePlan(any[GetUsagePlanRequest])).thenReturn(getUsagePlanResponseForBronze, getUsagePlanResponseForSilver)
+
+      updateApiHandler.handleInput(sqsEvent, mockContext)
+
+      val capturedRequests: Seq[UpdateUsagePlanRequest] = updateUsagePlanRequestCaptor.getAllValues.asScala
+      capturedRequests should have size 1
+      capturedRequests.head.usagePlanId() shouldBe usagePlans("BRONZE")
+      capturedRequests.head.patchOperations() should contain only PatchOperation.builder().op(ADD).path("/apiStages").value(s"$apiId:current").build()
     }
 
     "propagate UnauthorizedException thrown by AWS SDK when updating API" in new StandardSetup {
