@@ -2,7 +2,8 @@ lazy val appName = "api-platform-add-api-lambda"
 lazy val appDependencies: Seq[ModuleID] = compileDependencies ++ testDependencies
 
 lazy val compileDependencies = Seq(
-  "uk.gov.hmrc" %% "api-platform-manage-api" % "0.36.0"
+  "uk.gov.hmrc" %% "api-platform-manage-api" % "0.36.0",
+  "software.amazon.awssdk" % "sqs" % "2.5.13"
 )
 
 lazy val testScope: String = "test"
@@ -33,6 +34,9 @@ lazy val lambda = (project in file("."))
     assemblyMergeStrategy in assembly := {
       case path if path.endsWith("io.netty.versions.properties") => MergeStrategy.discard
       case path if path.endsWith("BuildInfo$.class") => MergeStrategy.discard
+      case path if path.endsWith("codegen-resources/customization.config") => MergeStrategy.discard
+      case path if path.endsWith("codegen-resources/paginators-1.json") => MergeStrategy.discard
+      case path if path.endsWith("codegen-resources/service-2.json") => MergeStrategy.discard
       case path =>
         val oldStrategy = (assemblyMergeStrategy in assembly).value
         oldStrategy(path)

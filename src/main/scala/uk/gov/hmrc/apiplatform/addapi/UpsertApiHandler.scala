@@ -1,13 +1,15 @@
 package uk.gov.hmrc.apiplatform.addapi
 
-import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
 import com.amazonaws.services.lambda.runtime.events.SQSEvent
+import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
 import io.swagger.models.Swagger
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
-import software.amazon.awssdk.services.apigateway.model.Op.REPLACE
+import software.amazon.awssdk.services.apigateway.model.Op.{ADD, REPLACE}
 import software.amazon.awssdk.services.apigateway.model.PutMode.OVERWRITE
 import software.amazon.awssdk.services.apigateway.model._
+import software.amazon.awssdk.services.sqs.SqsClient
+import software.amazon.awssdk.services.sqs.model.SendMessageRequest
 import uk.gov.hmrc.api_platform_manage_api.AwsApiGatewayClient.awsApiGatewayClient
 import uk.gov.hmrc.api_platform_manage_api.{AwsIdRetriever, DeploymentService, SwaggerService}
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.SqsHandler
@@ -17,13 +19,14 @@ import scala.collection.JavaConverters._
 import scala.language.postfixOps
 
 class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
+                       sqsClient: SqsClient,
                        deploymentService: DeploymentService,
                        swaggerService: SwaggerService,
                        environment: Map[String, String])
   extends SqsHandler with AwsIdRetriever {
 
   def this() {
-    this(awsApiGatewayClient, new DeploymentService(awsApiGatewayClient), new SwaggerService, sys.env)
+    this(awsApiGatewayClient, SqsClient.create(), new DeploymentService(awsApiGatewayClient), new SwaggerService, sys.env)
   }
 
   override def handleInput(input: SQSEvent, context: Context): Unit = {
@@ -111,14 +114,22 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
         logger.log(s"API $restApiId already present in usage plan $usagePlanId")
       } else {
         logger.log(s"Adding API $restApiId to usage plan $usagePlanId")
-        val patchOperations = Seq(PatchOperation.builder().op(Op.ADD).path("/apiStages").value(s"$restApiId:current").build())
 
-        apiGatewayClient.updateUsagePlan(
-          UpdateUsagePlanRequest.builder()
-            .usagePlanId(usagePlanId)
-            .patchOperations(patchOperations.asJava)
-            .build())
+        val usagePlanUpdateMsg = UsagePlanUpdateMsg(
+          usagePlanId,
+          Seq(PatchOp(ADD.toString, "/apiStages", s"$restApiId:current"))
+        )
+        sqsClient.sendMessage(
+          SendMessageRequest
+            .builder()
+            .queueUrl(environment("update_usage_plan_queue"))
+            .messageBody(toJson(usagePlanUpdateMsg))
+            .build()
+        )
       }
     }
   }
 }
+
+case class UsagePlanUpdateMsg(usagePlanId: String, patchOperations: Seq[PatchOp])
+case class PatchOp(op: String, path: String, value: String)
