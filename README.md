@@ -1,7 +1,9 @@
 
 # api-platform-add-api-lambda
 
-This is a placeholder README.md for a new repository
+Lambda function to add an API to AWS API Gateway.
+
+The `event` for the Lambda function is an SQS message. The body of the SQS message is JSON following the OpenAPI specification.
 
 ### License
 
