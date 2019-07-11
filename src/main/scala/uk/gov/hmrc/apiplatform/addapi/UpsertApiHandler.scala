@@ -10,6 +10,8 @@ import software.amazon.awssdk.services.apigateway.model.PutMode.OVERWRITE
 import software.amazon.awssdk.services.apigateway.model._
 import software.amazon.awssdk.services.sqs.SqsClient
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest
+import software.amazon.awssdk.services.waf.model.AssociateWebAclRequest
+import software.amazon.awssdk.services.waf.regional.WafRegionalClient
 import uk.gov.hmrc.api_platform_manage_api.AwsApiGatewayClient.awsApiGatewayClient
 import uk.gov.hmrc.api_platform_manage_api.{AwsIdRetriever, DeploymentService, SwaggerService}
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.SqsHandler
@@ -20,13 +22,14 @@ import scala.language.postfixOps
 
 class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
                        sqsClient: SqsClient,
+                       wafRegionalClient: WafRegionalClient,
                        deploymentService: DeploymentService,
                        swaggerService: SwaggerService,
                        environment: Map[String, String])
   extends SqsHandler with AwsIdRetriever {
 
   def this() {
-    this(awsApiGatewayClient, SqsClient.create(), new DeploymentService(awsApiGatewayClient), new SwaggerService, sys.env)
+    this(awsApiGatewayClient, SqsClient.create(), WafRegionalClient.create(), new DeploymentService(awsApiGatewayClient), new SwaggerService, sys.env)
   }
 
   override def handleInput(input: SQSEvent, context: Context): Unit = {
@@ -98,7 +101,17 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
   private def deployApi(restApiId: String, swagger: Swagger)(implicit logger: LambdaLogger): Unit = {
     logger.log(s"Deploying API: ${swagger.getInfo.getTitle}")
     deploymentService.deployApi(restApiId, swagger.getBasePath.stripPrefix("/"), swagger.getInfo.getVersion)
+    associateWebACL(restApiId)
     addApiToUsagePlans(restApiId)
+  }
+
+  private def associateWebACL(restApiId: String)(implicit logger: LambdaLogger): Unit = {
+    val stageArn: String = s"arn:aws:apigateway:${environment("AWS_REGION")}::/restapis/$restApiId/stages/current"
+    val webAclId: String = environment("waf_acl_id")
+    logger.log(s"Associating Stage ARN: $stageArn to Web ACL ID: $webAclId")
+
+    val request: AssociateWebAclRequest = AssociateWebAclRequest.builder().resourceArn(stageArn).webACLId(webAclId).build()
+    wafRegionalClient.associateWebACL(request)
   }
 
   private def addApiToUsagePlans(restApiId: String)(implicit logger: LambdaLogger): Unit = {

@@ -19,6 +19,8 @@ import software.amazon.awssdk.services.apigateway.model.PutMode.OVERWRITE
 import software.amazon.awssdk.services.apigateway.model._
 import software.amazon.awssdk.services.sqs.SqsClient
 import software.amazon.awssdk.services.sqs.model.{SendMessageRequest, SendMessageResponse}
+import software.amazon.awssdk.services.waf.model.AssociateWebAclRequest
+import software.amazon.awssdk.services.waf.regional.WafRegionalClient
 import uk.gov.hmrc.api_platform_manage_api.{DeploymentService, SwaggerService}
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.JsonMapper
 
@@ -41,6 +43,7 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
 
     val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient]
     val mockSqsClient: SqsClient = mock[SqsClient]
+    val mockWafRegionalClient: WafRegionalClient = mock[WafRegionalClient]
     val mockSwaggerService: SwaggerService = mock[SwaggerService]
     val mockDeploymentService: DeploymentService = mock[DeploymentService]
     val mockContext: Context = mock[Context]
@@ -58,13 +61,14 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
   }
 
   trait StandardSetup extends Setup {
-    val environment: Map[String, String] = Map("endpoint_type" -> "REGIONAL", "usage_plans" -> toJson(usagePlans), "update_usage_plan_queue" -> "arn:queue")
-    val updateApiHandler = new UpsertApiHandler(mockAPIGatewayClient, mockSqsClient, mockDeploymentService, mockSwaggerService, environment)
+    val environment: Map[String, String] = Map("AWS_REGION" -> "eu-west-2", "waf_acl_id" -> UUID.randomUUID.toString,
+      "endpoint_type" -> "REGIONAL", "usage_plans" -> toJson(usagePlans), "update_usage_plan_queue" -> "arn:queue")
+    val updateApiHandler = new UpsertApiHandler(mockAPIGatewayClient, mockSqsClient, mockWafRegionalClient, mockDeploymentService, mockSwaggerService, environment)
   }
 
   trait SetupWithoutEndpointType extends Setup {
-    val environment: Map[String, String] = Map()
-    val updateApiHandler = new UpsertApiHandler(mockAPIGatewayClient, mockSqsClient, mockDeploymentService, mockSwaggerService, environment)
+    val environment: Map[String, String] = Map("AWS_REGION" -> "eu-west-2", "waf_acl_id" -> UUID.randomUUID.toString)
+    val updateApiHandler = new UpsertApiHandler(mockAPIGatewayClient, mockSqsClient, mockWafRegionalClient, mockDeploymentService, mockSwaggerService, environment)
   }
 
   "Update API Handler" should {
@@ -160,6 +164,25 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
       updateApiHandler.handleInput(sqsEvent, mockContext)
 
       verify(mockDeploymentService, times(1)).deployApi(apiId, context, version)
+    }
+
+    "associate the stage with the web ACL" in new StandardSetup {
+      val apiGatewayResponse: PutRestApiResponse =
+        PutRestApiResponse.builder()
+          .id(apiId)
+          .endpointConfiguration(EndpointConfiguration.builder().types(PRIVATE).build())
+          .build()
+      when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
+
+      updateApiHandler.handleInput(sqsEvent, mockContext)
+
+      verify(mockWafRegionalClient, times(1))
+        .associateWebACL(AssociateWebAclRequest
+          .builder()
+          .resourceArn(s"arn:aws:apigateway:${environment("AWS_REGION")}::/restapis/$apiId/stages/current")
+          .webACLId(environment("waf_acl_id"))
+          .build()
+        )
     }
 
     "add the API to usage plans" in new StandardSetup {
