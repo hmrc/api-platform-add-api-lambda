@@ -14,11 +14,9 @@ import org.scalatest.mockito.MockitoSugar
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
 import software.amazon.awssdk.services.apigateway.model.EndpointType.{PRIVATE, REGIONAL}
-import software.amazon.awssdk.services.apigateway.model.Op.{ADD, REPLACE}
+import software.amazon.awssdk.services.apigateway.model.Op.REPLACE
 import software.amazon.awssdk.services.apigateway.model.PutMode.OVERWRITE
 import software.amazon.awssdk.services.apigateway.model._
-import software.amazon.awssdk.services.sqs.SqsClient
-import software.amazon.awssdk.services.sqs.model.{SendMessageRequest, SendMessageResponse}
 import software.amazon.awssdk.services.waf.model.AssociateWebAclRequest
 import software.amazon.awssdk.services.waf.regional.WafRegionalClient
 import uk.gov.hmrc.api_platform_manage_api.{DeploymentService, SwaggerService}
@@ -32,7 +30,8 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
   trait Setup {
     val usagePlans: Map[String, String] = Map("BRONZE" -> "1", "SILVER" -> "2")
     val apiId: String = UUID.randomUUID().toString
-    val apiName = "foo--1.0"
+    val apiNameWithoutVersion = "foo"
+    val apiName = s"$apiNameWithoutVersion--1.0"
     val version = "1.0"
     val context = "a/context"
     val requestBody = s"""{"host": "localhost", "info": {"title": "$apiName"}}"""
@@ -42,12 +41,13 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
     sqsEvent.setRecords(List(message))
 
     val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient]
-    val mockSqsClient: SqsClient = mock[SqsClient]
+    val mockUsagePlanService: UsagePlanService = mock[UsagePlanService]
     val mockWafRegionalClient: WafRegionalClient = mock[WafRegionalClient]
     val mockSwaggerService: SwaggerService = mock[SwaggerService]
     val mockDeploymentService: DeploymentService = mock[DeploymentService]
     val mockContext: Context = mock[Context]
-    when(mockContext.getLogger).thenReturn(mock[LambdaLogger])
+    val mockLambdaLogger: LambdaLogger = mock[LambdaLogger]
+    when(mockContext.getLogger).thenReturn(mockLambdaLogger)
     when(mockAPIGatewayClient.getRestApi(any[GetRestApiRequest]))
       .thenReturn(GetRestApiResponse.builder().endpointConfiguration(EndpointConfiguration.builder().types(REGIONAL).build()).build())
     when(mockAPIGatewayClient.getRestApis(any[GetRestApisRequest])).thenReturn(buildMatchingRestApisResponse(apiId, apiName))
@@ -63,16 +63,17 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
   trait StandardSetup extends Setup {
     val environment: Map[String, String] = Map("AWS_REGION" -> "eu-west-2", "waf_acl_id" -> UUID.randomUUID.toString,
       "endpoint_type" -> "REGIONAL", "usage_plans" -> toJson(usagePlans), "update_usage_plan_queue" -> "arn:queue")
-    val updateApiHandler = new UpsertApiHandler(mockAPIGatewayClient, mockSqsClient, mockWafRegionalClient, mockDeploymentService, mockSwaggerService, environment)
+    val updateApiHandler = new UpsertApiHandler(mockAPIGatewayClient, mockUsagePlanService, mockWafRegionalClient, mockDeploymentService, mockSwaggerService, environment)
   }
 
   trait SetupWithoutEndpointType extends Setup {
-    val environment: Map[String, String] = Map("AWS_REGION" -> "eu-west-2", "waf_acl_id" -> UUID.randomUUID.toString)
-    val updateApiHandler = new UpsertApiHandler(mockAPIGatewayClient, mockSqsClient, mockWafRegionalClient, mockDeploymentService, mockSwaggerService, environment)
+    val environment: Map[String, String] = Map("AWS_REGION" -> "eu-west-2", "waf_acl_id" -> UUID.randomUUID.toString,
+      "usage_plans" -> toJson(usagePlans), "update_usage_plan_queue" -> "arn:queue")
+    val updateApiHandler = new UpsertApiHandler(mockAPIGatewayClient, mockUsagePlanService, mockWafRegionalClient, mockDeploymentService, mockSwaggerService, environment)
   }
 
   "Update API Handler" should {
-    "send API specification to AWS endpoint and return the updated API id" in new StandardSetup {
+    "send API specification to AWS endpoint" in new StandardSetup {
       val id: String = UUID.randomUUID().toString
       val apiGatewayResponse: PutRestApiResponse =
         PutRestApiResponse.builder()
@@ -82,6 +83,8 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
       when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
 
       updateApiHandler.handleInput(sqsEvent, mockContext)
+
+      verify(mockAPIGatewayClient).putRestApi(any[PutRestApiRequest])
     }
 
     "correctly convert request event into PutRestApiRequest with correct configuration" in new StandardSetup {
@@ -192,41 +195,10 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
           .endpointConfiguration(EndpointConfiguration.builder().types(PRIVATE).build())
           .build()
       when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
-      val sendMessageRequestCaptor: ArgumentCaptor[SendMessageRequest] = ArgumentCaptor.forClass(classOf[SendMessageRequest])
-      when(mockSqsClient.sendMessage(sendMessageRequestCaptor.capture())).thenReturn(SendMessageResponse.builder().build())
 
       updateApiHandler.handleInput(sqsEvent, mockContext)
 
-      val capturedRequests: Seq[SendMessageRequest] = sendMessageRequestCaptor.getAllValues.asScala
-      capturedRequests should have size 2
-      val firstRequest: UsagePlanUpdateMsg = fromJson[UsagePlanUpdateMsg](capturedRequests.head.messageBody)
-      firstRequest.usagePlanId shouldBe usagePlans("BRONZE")
-      firstRequest.patchOperations should contain only PatchOp(ADD.toString, "/apiStages", s"$apiId:current")
-      val secondRequest: UsagePlanUpdateMsg = fromJson[UsagePlanUpdateMsg](capturedRequests(1).messageBody)
-      secondRequest.usagePlanId shouldBe usagePlans("SILVER")
-      secondRequest.patchOperations should contain only PatchOp(ADD.toString, "/apiStages", s"$apiId:current")
-    }
-
-    "not add the API to usage plans that already contain the API" in new StandardSetup {
-      val apiGatewayResponse: PutRestApiResponse =
-        PutRestApiResponse.builder()
-          .id(apiId)
-          .endpointConfiguration(EndpointConfiguration.builder().types(PRIVATE).build())
-          .build()
-      when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
-      val sendMessageRequestCaptor: ArgumentCaptor[SendMessageRequest] = ArgumentCaptor.forClass(classOf[SendMessageRequest])
-      when(mockSqsClient.sendMessage(sendMessageRequestCaptor.capture())).thenReturn(SendMessageResponse.builder().build())
-      val getUsagePlanResponseForBronze: GetUsagePlanResponse = GetUsagePlanResponse.builder().build()
-      val getUsagePlanResponseForSilver: GetUsagePlanResponse = GetUsagePlanResponse.builder().apiStages(ApiStage.builder().apiId(apiId).stage("current").build()).build()
-      when(mockAPIGatewayClient.getUsagePlan(any[GetUsagePlanRequest])).thenReturn(getUsagePlanResponseForBronze, getUsagePlanResponseForSilver)
-
-      updateApiHandler.handleInput(sqsEvent, mockContext)
-
-      val capturedRequests: Seq[SendMessageRequest] = sendMessageRequestCaptor.getAllValues.asScala
-      capturedRequests should have size 1
-      val capturedRequest: UsagePlanUpdateMsg = fromJson[UsagePlanUpdateMsg](capturedRequests.head.messageBody)
-      capturedRequest.usagePlanId shouldBe usagePlans("BRONZE")
-      capturedRequest.patchOperations should contain only PatchOp(ADD.toString, "/apiStages", s"$apiId:current")
+      verify(mockUsagePlanService).addApiToUsagePlans(apiId, apiNameWithoutVersion)(mockLambdaLogger)
     }
 
     "propagate UnauthorizedException thrown by AWS SDK when updating API" in new StandardSetup {

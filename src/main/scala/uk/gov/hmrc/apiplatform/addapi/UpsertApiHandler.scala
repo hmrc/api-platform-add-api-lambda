@@ -5,11 +5,9 @@ import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
 import io.swagger.models.Swagger
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
-import software.amazon.awssdk.services.apigateway.model.Op.{ADD, REPLACE}
+import software.amazon.awssdk.services.apigateway.model.Op.REPLACE
 import software.amazon.awssdk.services.apigateway.model.PutMode.OVERWRITE
 import software.amazon.awssdk.services.apigateway.model._
-import software.amazon.awssdk.services.sqs.SqsClient
-import software.amazon.awssdk.services.sqs.model.SendMessageRequest
 import software.amazon.awssdk.services.waf.model.AssociateWebAclRequest
 import software.amazon.awssdk.services.waf.regional.WafRegionalClient
 import uk.gov.hmrc.api_platform_manage_api.AwsApiGatewayClient.awsApiGatewayClient
@@ -21,7 +19,7 @@ import scala.collection.JavaConverters._
 import scala.language.postfixOps
 
 class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
-                       sqsClient: SqsClient,
+                       usagePlanService: UsagePlanService,
                        wafRegionalClient: WafRegionalClient,
                        deploymentService: DeploymentService,
                        swaggerService: SwaggerService,
@@ -29,7 +27,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
   extends SqsHandler with AwsIdRetriever {
 
   def this() {
-    this(awsApiGatewayClient, SqsClient.create(), WafRegionalClient.create(), new DeploymentService(awsApiGatewayClient), new SwaggerService, sys.env)
+    this(awsApiGatewayClient, new UsagePlanService, WafRegionalClient.create(), new DeploymentService(awsApiGatewayClient), new SwaggerService, sys.env)
   }
 
   override def handleInput(input: SQSEvent, context: Context): Unit = {
@@ -99,10 +97,12 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
   }
 
   private def deployApi(restApiId: String, swagger: Swagger)(implicit logger: LambdaLogger): Unit = {
-    logger.log(s"Deploying API: ${swagger.getInfo.getTitle}")
+    val title = swagger.getInfo.getTitle
+    val titleWithoutVersion = title.substring(0, title.lastIndexOf("--"))
+    logger.log(s"Deploying API: $title")
     deploymentService.deployApi(restApiId, swagger.getBasePath.stripPrefix("/"), swagger.getInfo.getVersion)
     associateWebACL(restApiId)
-    addApiToUsagePlans(restApiId)
+    usagePlanService.addApiToUsagePlans(restApiId, titleWithoutVersion)
   }
 
   private def associateWebACL(restApiId: String)(implicit logger: LambdaLogger): Unit = {
@@ -113,36 +113,4 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
     val request: AssociateWebAclRequest = AssociateWebAclRequest.builder().resourceArn(stageArn).webACLId(webAclId).build()
     wafRegionalClient.associateWebACL(request)
   }
-
-  private def addApiToUsagePlans(restApiId: String)(implicit logger: LambdaLogger): Unit = {
-    val usagePlanIds: Map[String, String] = fromJson[Map[String, String]](environment.getOrElse("usage_plans", "{}"))
-
-    usagePlanIds.values foreach { usagePlanId =>
-      val existingSubscriptions: Seq[String] = apiGatewayClient
-        .getUsagePlan(GetUsagePlanRequest.builder().usagePlanId(usagePlanId).build())
-        .apiStages().asScala
-        .map(_.apiId)
-
-      if (existingSubscriptions.contains(restApiId)) {
-        logger.log(s"API $restApiId already present in usage plan $usagePlanId")
-      } else {
-        logger.log(s"Adding API $restApiId to usage plan $usagePlanId")
-
-        val usagePlanUpdateMsg = UsagePlanUpdateMsg(
-          usagePlanId,
-          Seq(PatchOp(ADD.toString, "/apiStages", s"$restApiId:current"))
-        )
-        sqsClient.sendMessage(
-          SendMessageRequest
-            .builder()
-            .queueUrl(environment("update_usage_plan_queue"))
-            .messageBody(toJson(usagePlanUpdateMsg))
-            .build()
-        )
-      }
-    }
-  }
 }
-
-case class UsagePlanUpdateMsg(usagePlanId: String, patchOperations: Seq[PatchOp])
-case class PatchOp(op: String, path: String, value: String)
