@@ -11,7 +11,7 @@ import software.amazon.awssdk.services.apigateway.model._
 import software.amazon.awssdk.services.waf.model.AssociateWebAclRequest
 import software.amazon.awssdk.services.waf.regional.WafRegionalClient
 import uk.gov.hmrc.api_platform_manage_api.AwsApiGatewayClient.awsApiGatewayClient
-import uk.gov.hmrc.api_platform_manage_api.{AwsIdRetriever, DeploymentService, SwaggerService}
+import uk.gov.hmrc.api_platform_manage_api._
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.SqsHandler
 
 import scala.collection.JavaConversions.mapAsJavaMap
@@ -25,6 +25,22 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
                        swaggerService: SwaggerService,
                        environment: Map[String, String])
   extends SqsHandler with AwsIdRetriever {
+
+  val AccessLogFormat: String =
+    """{
+      |"apiKey": "$context.identity.apiKey",
+      |"requestId": "$context.requestId",
+      |"authorizer.clientId": "$context.authorizer.clientId",
+      |"authorizer.apiVersion": "$context.authorizer.apiVersion",
+      |"authorizer.apiContext": "$context.authorizer.apiContext",
+      |"authorizer.authType": "$context.authorizer.authorisationType",
+      |"authorizer.requestId": "$context.authorizer.requestId",
+      |"authorizer.applicationId": "$context.authorizer.applicationId",
+      |"httpMethod": "$context.httpMethod",
+      |"clientIp": "$context.identity.sourceIp",
+      |"requestTimeEpoch": "$context.requestTimeEpoch",
+      |"resourcePath": "$context.resourcePath",
+      |"status": "$context.status"}""".stripMargin
 
   def this() {
     this(awsApiGatewayClient, new UsagePlanService, WafRegionalClient.create(), new DeploymentService(awsApiGatewayClient), new SwaggerService, sys.env)
@@ -99,8 +115,16 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
   private def deployApi(restApiId: String, swagger: Swagger)(implicit logger: LambdaLogger): Unit = {
     val title = swagger.getInfo.getTitle
     val titleWithoutVersion = title.substring(0, title.lastIndexOf("--"))
+
     logger.log(s"Deploying API: $title")
-    deploymentService.deployApi(restApiId, swagger.getBasePath.stripPrefix("/"), swagger.getInfo.getVersion)
+
+    deploymentService.deployApi(
+      restApiId,
+      swagger.getBasePath.stripPrefix("/"),
+      swagger.getInfo.getVersion,
+      NoCloudWatchLogging,
+      AccessLogConfiguration(AccessLogFormat, environment("access_log_arn")))
+
     associateWebACL(restApiId)
     usagePlanService.addApiToUsagePlans(restApiId, titleWithoutVersion)
   }
