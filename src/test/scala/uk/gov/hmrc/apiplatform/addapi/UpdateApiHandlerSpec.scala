@@ -239,6 +239,13 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
     }
   }
 
+  "AccessLogFormat" should {
+    "be a single line string" in new StandardSetup {
+      updateApiHandler.AccessLogFormat should not include ("\n")
+      updateApiHandler.AccessLogFormat should not include ("\r")
+    }
+  }
+
   def buildMatchingRestApisResponse(matchingId: String, matchingName: String): GetRestApisResponse = {
     GetRestApisResponse.builder()
       .items(RestApi.builder().id(matchingId).name(matchingName).build())
