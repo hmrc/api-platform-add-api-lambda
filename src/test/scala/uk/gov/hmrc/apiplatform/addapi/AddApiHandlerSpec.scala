@@ -167,6 +167,13 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
     }
   }
 
+  "AccessLogFormat" should {
+    "be a single line string" in new StandardSetup {
+      addApiHandler.AccessLogFormat should not include ("\n")
+      addApiHandler.AccessLogFormat should not include ("\r")
+    }
+  }
+
   def buildNonMatchingRestApisResponse(count: Int): GetRestApisResponse = {
     val items: Seq[RestApi] = (1 to count).map(c => RestApi.builder().id(s"$c").name(s"Item $c").build())
 
