@@ -40,7 +40,8 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
       |"clientIp": "$context.identity.sourceIp",
       |"requestTimeEpoch": "$context.requestTimeEpoch",
       |"resourcePath": "$context.resourcePath",
-      |"status": "$context.status"}""".stripMargin.replaceAll("[\n\r]","")
+      |"status": "$context.status",
+      |"path": "$context.path"}""".stripMargin.replaceAll("[\n\r]","")
 
   def this() {
     this(awsApiGatewayClient, new UsagePlanService, WafRegionalClient.create(), new DeploymentService(awsApiGatewayClient), new SwaggerService, sys.env)
