@@ -1,7 +1,7 @@
 #!/usr/bin/env groovy
 
 // Assume that the zip artefact has the same name as the Jenkins job
-String target_file = "target/scala-2.11/${env.JOB_BASE_NAME}.zip"
+String target_file = "${env.JOB_BASE_NAME}.zip"
 
 pipeline {
     agent any
