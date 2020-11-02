@@ -15,11 +15,11 @@ pipeline {
                 }
             }
             steps {
-                dir("${env.JOB_BASE_NAME}") {
-                    checkout scm
-                    sh(script: "sbt assembly")
-                    stash(name: 'artefact', includes: target_file)
-                }
+                sh(script: "sbt assembly")
+                stash(
+                    name: 'artefact',
+                    includes: target_file
+                )
             }
         }
         stage('Generate sha256') {
