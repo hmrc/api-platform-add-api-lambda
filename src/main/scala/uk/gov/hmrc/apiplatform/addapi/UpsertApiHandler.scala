@@ -41,6 +41,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
       |"requestTimeEpoch": "$context.requestTimeEpoch",
       |"resourcePath": "$context.resourcePath",
       |"status": "$context.status",
+      |"integration.errorMessage": "$context.integrationErrorMessage",
       |"path": "$context.path"}""".stripMargin.replaceAll("[\n\r]","")
 
   def this() {
