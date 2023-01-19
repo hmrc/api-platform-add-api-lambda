@@ -45,7 +45,7 @@ pipeline {
                 )
             }
         }
-        stage('Deploy to Integration & Development') {
+        stage('Deploy to Integration, Development & QA') {
             steps {
                 build(
                     job: 'api-platform-admin-api/deploy_lambda',
@@ -53,7 +53,8 @@ pipeline {
                         [$class: 'StringParameterValue', name: 'ARTEFACT', value: env.JOB_BASE_NAME],
                         [$class: 'StringParameterValue', name: 'VERSION', value: git_id],
                         [$class: 'BooleanParameterValue', name: 'DEPLOY_INTEGRATION', value: true],
-                        [$class: 'BooleanParameterValue', name: 'DEPLOY_DEVELOPMENT', value: true]
+                        [$class: 'BooleanParameterValue', name: 'DEPLOY_DEVELOPMENT', value: true],
+                        [$class: 'BooleanParameterValue', name: 'DEPLOY_QA', value: true]
                     ]
                 )
             }
