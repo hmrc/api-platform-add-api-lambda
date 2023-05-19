@@ -59,7 +59,6 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
     val environment: Map[String, String] =
       Map(
         "AWS_REGION" -> "eu-west-2",
-        "waf_acl_id" -> UUID.randomUUID.toString,
         "endpoint_type" -> "REGIONAL",
         "access_log_arn" -> loggingDestinationArn)
     val addApiHandler =
@@ -70,7 +69,6 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
     val environment: Map[String, String] =
       Map(
         "AWS_REGION" -> "eu-west-2",
-        "waf_acl_id" -> UUID.randomUUID.toString,
         "access_log_arn" -> loggingDestinationArn)
     val addApiHandler =
       new UpsertApiHandler(mockAPIGatewayClient, mockUsagePlanService, mockWafRegionalClient, mockDeploymentService, mockSwaggerService, environment)
@@ -118,21 +116,6 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
 
       verify(mockDeploymentService, times(1))
         .deployApi(apiId, context, version, NoCloudWatchLogging, AccessLogConfiguration(addApiHandler.AccessLogFormat, loggingDestinationArn))
-    }
-
-    "associate the stage with the web ACL" in new StandardSetup {
-      val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(apiId).build()
-      when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(apiGatewayResponse)
-
-      addApiHandler.handleInput(sqsEvent, mockContext)
-
-      verify(mockWafRegionalClient, times(1))
-        .associateWebACL(AssociateWebAclRequest
-          .builder()
-          .resourceArn(s"arn:aws:apigateway:${environment("AWS_REGION")}::/restapis/$apiId/stages/current")
-          .webACLId(environment("waf_acl_id"))
-          .build()
-        )
     }
 
     "add the API to usage plans" in new StandardSetup {
