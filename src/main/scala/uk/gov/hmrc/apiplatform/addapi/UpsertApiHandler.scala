@@ -127,16 +127,6 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
       NoCloudWatchLogging,
       AccessLogConfiguration(AccessLogFormat, environment("access_log_arn")))
 
-    associateWebACL(restApiId)
     usagePlanService.addApiToUsagePlans(restApiId, titleWithoutVersion)
-  }
-
-  private def associateWebACL(restApiId: String)(implicit logger: LambdaLogger): Unit = {
-    val stageArn: String = s"arn:aws:apigateway:${environment("AWS_REGION")}::/restapis/$restApiId/stages/current"
-    val webAclId: String = environment("waf_acl_id")
-    logger.log(s"Associating Stage ARN: $stageArn to Web ACL ID: $webAclId")
-
-    val request: AssociateWebAclRequest = AssociateWebAclRequest.builder().resourceArn(stageArn).webACLId(webAclId).build()
-    wafRegionalClient.associateWebACL(request)
   }
 }
