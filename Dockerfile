@@ -1,4 +1,4 @@
-FROM amazonlinux
+FROM amazonlinux:2
 
 RUN yum install -y java-1.8.0-openjdk-devel
 RUN curl -L https://www.scala-sbt.org/sbt-rpm.repo > /etc/yum.repos.d/sbt-rpm.repo
