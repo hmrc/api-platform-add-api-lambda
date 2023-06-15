@@ -14,7 +14,6 @@ import org.scalatest.mockito.MockitoSugar
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
 import software.amazon.awssdk.services.apigateway.model._
-import software.amazon.awssdk.services.waf.model.AssociateWebAclRequest
 import software.amazon.awssdk.services.waf.model.DisassociateWebAclRequest
 import software.amazon.awssdk.services.waf.regional.WafRegionalClient
 import uk.gov.hmrc.api_platform_manage_api.{AccessLogConfiguration, DeploymentService, NoCloudWatchLogging, SwaggerService}
@@ -126,7 +125,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
       addApiHandler.handleInput(sqsEvent, mockContext)
 
       verify(mockWafRegionalClient, times(1))
-        .disassociateWebACL(DisassociateWebAclRequest)
+        .disassociateWebACL(DisassociateWebAclRequest
           .builder()
           .resourceArn(s"arn:aws:apigateway:${environment("AWS_REGION")}::/restapis/$apiId/stages/current")
           .build()
