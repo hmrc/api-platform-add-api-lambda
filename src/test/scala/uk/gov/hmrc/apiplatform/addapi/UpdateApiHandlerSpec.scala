@@ -17,7 +17,7 @@ import software.amazon.awssdk.services.apigateway.model.EndpointType.{PRIVATE, R
 import software.amazon.awssdk.services.apigateway.model.Op.REPLACE
 import software.amazon.awssdk.services.apigateway.model.PutMode.OVERWRITE
 import software.amazon.awssdk.services.apigateway.model._
-import software.amazon.awssdk.services.waf.model.AssociateWebAclRequest
+import software.amazon.awssdk.services.waf.model.DisassociateWebAclRequest
 import software.amazon.awssdk.services.waf.regional.WafRegionalClient
 import uk.gov.hmrc.api_platform_manage_api.{AccessLogConfiguration, DeploymentService, NoCloudWatchLogging, SwaggerService}
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.JsonMapper
@@ -180,6 +180,24 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
 
       verify(mockDeploymentService, times(1))
         .deployApi(apiId, context, version, NoCloudWatchLogging, AccessLogConfiguration(updateApiHandler.AccessLogFormat, loggingDestinationArn))
+    }
+
+    "disassociate the stage with the web ACL" in new StandardSetup {
+      val apiGatewayResponse: PutRestApiResponse =
+        PutRestApiResponse.builder()
+          .id(apiId)
+          .endpointConfiguration(EndpointConfiguration.builder().types(PRIVATE).build())
+          .build()
+      when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
+
+      updateApiHandler.handleInput(sqsEvent, mockContext)
+
+      verify(mockWafRegionalClient, times(1))
+        .disassociateWebACL(DisassociateWebAclRequest
+          .builder()
+          .resourceArn(s"arn:aws:apigateway:${environment("AWS_REGION")}::/restapis/$apiId/stages/current")
+          .build()
+        )
     }
 
     "add the API to usage plans" in new StandardSetup {
