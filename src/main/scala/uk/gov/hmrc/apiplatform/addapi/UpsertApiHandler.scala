@@ -8,7 +8,7 @@ import software.amazon.awssdk.services.apigateway.ApiGatewayClient
 import software.amazon.awssdk.services.apigateway.model.Op.REPLACE
 import software.amazon.awssdk.services.apigateway.model.PutMode.OVERWRITE
 import software.amazon.awssdk.services.apigateway.model._
-import software.amazon.awssdk.services.waf.model.{AssociateWebAclRequest, DisassociateWebAclRequest}
+import software.amazon.awssdk.services.waf.model.DisassociateWebAclRequest
 import software.amazon.awssdk.services.waf.regional.WafRegionalClient
 import uk.gov.hmrc.api_platform_manage_api.AwsApiGatewayClient.awsApiGatewayClient
 import uk.gov.hmrc.api_platform_manage_api._

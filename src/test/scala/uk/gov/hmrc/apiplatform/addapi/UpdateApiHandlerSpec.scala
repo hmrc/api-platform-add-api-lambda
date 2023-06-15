@@ -17,7 +17,6 @@ import software.amazon.awssdk.services.apigateway.model.EndpointType.{PRIVATE, R
 import software.amazon.awssdk.services.apigateway.model.Op.REPLACE
 import software.amazon.awssdk.services.apigateway.model.PutMode.OVERWRITE
 import software.amazon.awssdk.services.apigateway.model._
-import software.amazon.awssdk.services.waf.model.AssociateWebAclRequest
 import software.amazon.awssdk.services.waf.model.DisassociateWebAclRequest
 import software.amazon.awssdk.services.waf.regional.WafRegionalClient
 import uk.gov.hmrc.api_platform_manage_api.{AccessLogConfiguration, DeploymentService, NoCloudWatchLogging, SwaggerService}
