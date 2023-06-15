@@ -8,7 +8,7 @@ import software.amazon.awssdk.services.apigateway.ApiGatewayClient
 import software.amazon.awssdk.services.apigateway.model.Op.REPLACE
 import software.amazon.awssdk.services.apigateway.model.PutMode.OVERWRITE
 import software.amazon.awssdk.services.apigateway.model._
-import software.amazon.awssdk.services.waf.model.AssociateWebAclRequest
+import software.amazon.awssdk.services.waf.model.{AssociateWebAclRequest, DisassociateWebAclRequest}
 import software.amazon.awssdk.services.waf.regional.WafRegionalClient
 import uk.gov.hmrc.api_platform_manage_api.AwsApiGatewayClient.awsApiGatewayClient
 import uk.gov.hmrc.api_platform_manage_api._
@@ -136,7 +136,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
   private def ensureNoWebACL(restApiId: String)(implicit logger: LambdaLogger): Unit = {
     val stageArn: String = s"arn:aws:apigateway:${environment("AWS_REGION")}::/restapis/$restApiId/stages/current"
 
-    val request: AssociateWebAclRequest = AssociateWebAclRequest.builder().resourceArn(stageArn).build()
-    wafRegionalClient.associateWebACL(request)
+    val request: DisassociateWebAclRequest = DisassociateWebAclRequest.builder().resourceArn(stageArn).build()
+    wafRegionalClient.disassociateWebACL(request)
   }
 }
