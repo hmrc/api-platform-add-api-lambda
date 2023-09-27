@@ -112,7 +112,12 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
 
       val capturedRequest: PutRestApiRequest = putRestApiRequestCaptor.getValue
       capturedRequest.failOnWarnings shouldBe true
-      capturedRequest.body shouldEqual fromUtf8String(toJson(swagger))
+      val newValue = toJson(swagger)
+      val swaggerString = fromUtf8String(newValue)
+      print("*************" + newValue)
+      capturedRequest.body shouldEqual swaggerString
+      val newValue1 = "*************" + capturedRequest.body().asUtf8String()
+      print(newValue1)
       capturedRequest.mode() shouldEqual OVERWRITE
       capturedRequest.restApiId() shouldEqual apiId
     }

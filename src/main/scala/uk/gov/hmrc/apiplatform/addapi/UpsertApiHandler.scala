@@ -26,6 +26,8 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
                        environment: Map[String, String])
   extends SqsHandler with AwsIdRetriever {
 
+  var logger2: String = "I'm a logger"
+
   val AccessLogFormat: String =
     """{
       |"apiKey": "$context.identity.apiKey",
@@ -66,6 +68,19 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
 
   private def putApi(restApiId: String, swagger: Swagger)(implicit logger: LambdaLogger): Unit = {
 
+    val x = 5;
+    var y = x;
+    
+    y+=1;
+
+    print("*********************************" + x)
+
+    // swagger -> &000001 (at this address lives the swagger object)
+    // swagger2 -> &000001
+
+
+    swagger.getInfo().description("Updated by API Platform add-api-lambda at " + System.currentTimeMillis())
+
     val putApiRequest: PutRestApiRequest = PutRestApiRequest
       .builder()
       .body(fromUtf8String(toJson(swagger)))
@@ -104,6 +119,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
   }
 
   private def importApi(swagger: Swagger)(implicit logger: LambdaLogger): Unit = {
+    swagger.getInfo().description("Created by API Platform add-api-lambda at " + System.currentTimeMillis())
     val importApiRequest: ImportRestApiRequest = ImportRestApiRequest
       .builder()
       .body(fromUtf8String(toJson(swagger)))
