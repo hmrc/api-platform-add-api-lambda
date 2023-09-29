@@ -24,6 +24,9 @@ import uk.gov.hmrc.aws_gateway_proxied_request_lambda.JsonMapper
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
 
 class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar with JsonMapper {
 
@@ -48,6 +51,7 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
     val mockDeploymentService: DeploymentService = mock[DeploymentService]
     val mockContext: Context = mock[Context]
     val mockLambdaLogger: LambdaLogger = mock[LambdaLogger]
+    val clock = Clock.fixed(Instant.parse("2014-12-22T10:15:30.00Z"), ZoneId.of("UTC"));
     when(mockContext.getLogger).thenReturn(mockLambdaLogger)
     when(mockAPIGatewayClient.getRestApi(any[GetRestApiRequest]))
       .thenReturn(GetRestApiResponse.builder().endpointConfiguration(EndpointConfiguration.builder().types(REGIONAL).build()).build())

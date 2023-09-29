@@ -13,10 +13,16 @@ import software.amazon.awssdk.services.waf.regional.WafRegionalClient
 import uk.gov.hmrc.api_platform_manage_api.AwsApiGatewayClient.awsApiGatewayClient
 import uk.gov.hmrc.api_platform_manage_api._
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.SqsHandler
+import java.time.format.DateTimeFormatter
+import java.time.LocalDate
 
 import scala.collection.JavaConversions.mapAsJavaMap
 import scala.collection.JavaConverters._
 import scala.language.postfixOps
+import java.time.LocalDateTime
+import java.time.Clock
+import java.time.ZoneId
+import java.time.Instant
 
 class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
                        usagePlanService: UsagePlanService,
@@ -26,7 +32,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
                        environment: Map[String, String])
   extends SqsHandler with AwsIdRetriever {
 
-  var logger2: String = "I'm a logger"
+  val clock = Clock.systemUTC()
 
   val AccessLogFormat: String =
     """{
@@ -68,18 +74,9 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
 
   private def putApi(restApiId: String, swagger: Swagger)(implicit logger: LambdaLogger): Unit = {
 
-    val x = 5;
-    var y = x;
-    
-    y+=1;
-
-    print("*********************************" + x)
-
-    // swagger -> &000001 (at this address lives the swagger object)
-    // swagger2 -> &000001
-
-
-    swagger.getInfo().description("Updated by API Platform add-api-lambda at " + System.currentTimeMillis())
+    // val clock = Clock.fixed(Instant.parse("2014-12-22T10:15:30.00Z"), ZoneId.of("UTC"));
+    val formatDateTime = DateTimeFormatter.ISO_LOCAL_DATE
+    swagger.getInfo().description("Updated by API Platform add-api-lambda at " + formatDateTime.format(LocalDateTime.now(clock)))
 
     val putApiRequest: PutRestApiRequest = PutRestApiRequest
       .builder()
