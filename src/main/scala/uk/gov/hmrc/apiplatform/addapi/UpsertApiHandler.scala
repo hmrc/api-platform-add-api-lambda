@@ -74,7 +74,6 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
   }
 
   private def putApi(restApiId: String, swagger: Swagger)(implicit logger: LambdaLogger): Unit = {
-
     val putApiRequest: PutRestApiRequest = PutRestApiRequest
       .builder()
       .body(fromUtf8String(toJson(swagger)))
@@ -113,7 +112,6 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
   }
 
   private def importApi(swagger: Swagger)(implicit logger: LambdaLogger): Unit = {
-
     val importApiRequest: ImportRestApiRequest = ImportRestApiRequest
       .builder()
       .body(fromUtf8String(toJson(swagger)))

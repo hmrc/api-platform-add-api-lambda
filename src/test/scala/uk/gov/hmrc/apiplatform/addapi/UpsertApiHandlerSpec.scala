@@ -51,7 +51,6 @@ class UpsertApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
     val mockDeploymentService: DeploymentService = mock[DeploymentService]
     val mockContext: Context = mock[Context]
     val mockLambdaLogger: LambdaLogger = mock[LambdaLogger]
-    val clock = Clock.fixed(Instant.parse("2023-10-02T10:15:30.00Z"), ZoneId.of("UTC"));
     when(mockContext.getLogger).thenReturn(mockLambdaLogger)
     when(mockAPIGatewayClient.getRestApi(any[GetRestApiRequest]))
       .thenReturn(GetRestApiResponse.builder().endpointConfiguration(EndpointConfiguration.builder().types(REGIONAL).build()).build())
