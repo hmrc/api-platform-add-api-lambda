@@ -1,7 +1,8 @@
 package uk.gov.hmrc.apiplatform.addapi
 
+import com.amazonaws.services.lambda.runtime.Context
+import com.amazonaws.services.lambda.runtime.LambdaLogger
 import com.amazonaws.services.lambda.runtime.events.SQSEvent
-import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
 import io.swagger.models.Swagger
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
@@ -13,26 +14,24 @@ import software.amazon.awssdk.services.waf.regional.WafRegionalClient
 import uk.gov.hmrc.api_platform_manage_api.AwsApiGatewayClient.awsApiGatewayClient
 import uk.gov.hmrc.api_platform_manage_api._
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.SqsHandler
-import java.time.format.DateTimeFormatter
-import java.time.LocalDate
 
+import java.time.Clock
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import scala.collection.JavaConversions.mapAsJavaMap
 import scala.collection.JavaConverters._
 import scala.language.postfixOps
-import java.time.LocalDateTime
-import java.time.Clock
-import java.time.ZoneId
-import java.time.Instant
 
 class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
                        usagePlanService: UsagePlanService,
                        wafRegionalClient: WafRegionalClient,
                        deploymentService: DeploymentService,
                        swaggerService: SwaggerService,
-                       environment: Map[String, String])
+                       environment: Map[String, String],
+                       private val clock: Clock = Clock.systemUTC())
   extends SqsHandler with AwsIdRetriever {
 
-  val clock = Clock.systemUTC()
+  private val isoTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
   val AccessLogFormat: String =
     """{
@@ -65,6 +64,8 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
     }
 
     val swagger: Swagger = swaggerService.createSwagger(input.getRecords.get(0).getBody)
+    
+    swagger.getInfo().description("Updated by API Platform add-api-lambda at " + isoTimeFormatter.format(LocalDateTime.now(clock)))
     logger.log(s"Created swagger: ${toJson(swagger)}")
     getAwsRestApiIdByApiName(swagger.getInfo.getTitle) match {
       case Some(restApiId) => putApi(restApiId, swagger)
@@ -73,10 +74,6 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
   }
 
   private def putApi(restApiId: String, swagger: Swagger)(implicit logger: LambdaLogger): Unit = {
-
-    // val clock = Clock.fixed(Instant.parse("2014-12-22T10:15:30.00Z"), ZoneId.of("UTC"));
-    val formatDateTime = DateTimeFormatter.ISO_LOCAL_DATE
-    swagger.getInfo().description("Updated by API Platform add-api-lambda at " + formatDateTime.format(LocalDateTime.now(clock)))
 
     val putApiRequest: PutRestApiRequest = PutRestApiRequest
       .builder()
@@ -116,7 +113,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
   }
 
   private def importApi(swagger: Swagger)(implicit logger: LambdaLogger): Unit = {
-    swagger.getInfo().description("Created by API Platform add-api-lambda at " + System.currentTimeMillis())
+
     val importApiRequest: ImportRestApiRequest = ImportRestApiRequest
       .builder()
       .body(fromUtf8String(toJson(swagger)))

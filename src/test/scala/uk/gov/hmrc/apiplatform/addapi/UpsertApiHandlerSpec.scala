@@ -28,7 +28,7 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
 
-class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar with JsonMapper {
+class UpsertApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar with JsonMapper {
 
   trait Setup {
     val usagePlans: Map[String, String] = Map("BRONZE" -> "1", "SILVER" -> "2")
@@ -51,7 +51,7 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
     val mockDeploymentService: DeploymentService = mock[DeploymentService]
     val mockContext: Context = mock[Context]
     val mockLambdaLogger: LambdaLogger = mock[LambdaLogger]
-    val clock = Clock.fixed(Instant.parse("2014-12-22T10:15:30.00Z"), ZoneId.of("UTC"));
+    val clock = Clock.fixed(Instant.parse("2023-10-02T10:15:30.00Z"), ZoneId.of("UTC"));
     when(mockContext.getLogger).thenReturn(mockLambdaLogger)
     when(mockAPIGatewayClient.getRestApi(any[GetRestApiRequest]))
       .thenReturn(GetRestApiResponse.builder().endpointConfiguration(EndpointConfiguration.builder().types(REGIONAL).build()).build())
@@ -74,7 +74,7 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
         "update_usage_plan_queue" -> "arn:queue",
         "access_log_arn" -> loggingDestinationArn)
     val updateApiHandler =
-      new UpsertApiHandler(mockAPIGatewayClient, mockUsagePlanService, mockWafRegionalClient, mockDeploymentService, mockSwaggerService, environment)
+      new UpsertApiHandler(mockAPIGatewayClient, mockUsagePlanService, mockWafRegionalClient, mockDeploymentService, mockSwaggerService, environment, Clock.fixed(Instant.parse("2023-10-02T10:15:30.00Z"), ZoneId.of("UTC")))
   }
 
   trait SetupWithoutEndpointType extends Setup {
@@ -103,6 +103,20 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
       verify(mockAPIGatewayClient).putRestApi(any[PutRestApiRequest])
     }
 
+    "set the swagger description to indicate the date the API was updated" in new StandardSetup {
+      val id: String = UUID.randomUUID().toString
+      val apiGatewayResponse: PutRestApiResponse =
+        PutRestApiResponse.builder()
+          .id(id)
+          .endpointConfiguration(EndpointConfiguration.builder().types(PRIVATE).build())
+          .build()
+      when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
+
+      updateApiHandler.handleInput(sqsEvent, mockContext)
+
+      swagger.getInfo().getDescription() shouldEqual "Updated by API Platform add-api-lambda at 2023-10-02"
+    }
+
     "correctly convert request event into PutRestApiRequest with correct configuration" in new StandardSetup {
       val apiGatewayResponse: PutRestApiResponse =
         PutRestApiResponse.builder()
@@ -116,12 +130,7 @@ class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
 
       val capturedRequest: PutRestApiRequest = putRestApiRequestCaptor.getValue
       capturedRequest.failOnWarnings shouldBe true
-      val newValue = toJson(swagger)
-      val swaggerString = fromUtf8String(newValue)
-      print("*************" + newValue)
-      capturedRequest.body shouldEqual swaggerString
-      val newValue1 = "*************" + capturedRequest.body().asUtf8String()
-      print(newValue1)
+      capturedRequest.body shouldEqual fromUtf8String(toJson(swagger))
       capturedRequest.mode() shouldEqual OVERWRITE
       capturedRequest.restApiId() shouldEqual apiId
     }
