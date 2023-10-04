@@ -24,11 +24,8 @@ import uk.gov.hmrc.aws_gateway_proxied_request_lambda.JsonMapper
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-import java.time.Clock
-import java.time.Instant
-import java.time.ZoneId
 
-class UpsertApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar with JsonMapper {
+class UpdateApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar with JsonMapper {
 
   trait Setup {
     val usagePlans: Map[String, String] = Map("BRONZE" -> "1", "SILVER" -> "2")
@@ -73,7 +70,7 @@ class UpsertApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
         "update_usage_plan_queue" -> "arn:queue",
         "access_log_arn" -> loggingDestinationArn)
     val updateApiHandler =
-      new UpsertApiHandler(mockAPIGatewayClient, mockUsagePlanService, mockWafRegionalClient, mockDeploymentService, mockSwaggerService, environment, Clock.fixed(Instant.parse("2023-10-02T10:15:30.00Z"), ZoneId.of("UTC")))
+      new UpsertApiHandler(mockAPIGatewayClient, mockUsagePlanService, mockWafRegionalClient, mockDeploymentService, mockSwaggerService, environment)
   }
 
   trait SetupWithoutEndpointType extends Setup {
@@ -100,20 +97,6 @@ class UpsertApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
       updateApiHandler.handleInput(sqsEvent, mockContext)
 
       verify(mockAPIGatewayClient).putRestApi(any[PutRestApiRequest])
-    }
-
-    "set the swagger description to indicate the date the API was updated" in new StandardSetup {
-      val id: String = UUID.randomUUID().toString
-      val apiGatewayResponse: PutRestApiResponse =
-        PutRestApiResponse.builder()
-          .id(id)
-          .endpointConfiguration(EndpointConfiguration.builder().types(PRIVATE).build())
-          .build()
-      when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
-
-      updateApiHandler.handleInput(sqsEvent, mockContext)
-
-      swagger.getInfo().getDescription() shouldEqual "Updated by API Platform add-api-lambda at 2023-10-02"
     }
 
     "correctly convert request event into PutRestApiRequest with correct configuration" in new StandardSetup {
