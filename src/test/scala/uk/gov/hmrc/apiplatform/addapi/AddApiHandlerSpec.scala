@@ -20,6 +20,9 @@ import uk.gov.hmrc.api_platform_manage_api.{AccessLogConfiguration, DeploymentSe
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.JsonMapper
 
 import scala.collection.JavaConversions._
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
 
 class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar with JsonMapper {
 
@@ -62,7 +65,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
         "endpoint_type" -> "REGIONAL",
         "access_log_arn" -> loggingDestinationArn)
     val addApiHandler =
-      new UpsertApiHandler(mockAPIGatewayClient, mockUsagePlanService, mockWafRegionalClient, mockDeploymentService, mockSwaggerService, environment)
+      new UpsertApiHandler(mockAPIGatewayClient, mockUsagePlanService, mockWafRegionalClient, mockDeploymentService, mockSwaggerService, environment, Clock.fixed(Instant.parse("2023-10-02T10:15:30.00Z"), ZoneId.of("UTC")))
   }
 
   trait SetupWithoutEndpointType extends Setup {
@@ -82,6 +85,15 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
       addApiHandler.handleInput(sqsEvent, mockContext)
 
       verify(mockAPIGatewayClient).importRestApi(any[ImportRestApiRequest])
+    }
+
+    "update the swagger description to indicate the date the API was updated" in new StandardSetup {
+      val apiGatewayResponse: ImportRestApiResponse = ImportRestApiResponse.builder().id(apiId).build()
+      when(mockAPIGatewayClient.importRestApi(any[ImportRestApiRequest])).thenReturn(apiGatewayResponse)
+
+      addApiHandler.handleInput(sqsEvent, mockContext)
+
+      swagger.getInfo().getDescription() shouldBe "Updated by API Platform add-api-lambda at 2023-10-02" 
     }
 
     "correctly convert request event into ImportRestApiRequest with correct configuration" in new StandardSetup {
