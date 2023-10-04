@@ -21,6 +21,7 @@ import java.time.format.DateTimeFormatter
 import scala.collection.JavaConversions.mapAsJavaMap
 import scala.collection.JavaConverters._
 import scala.language.postfixOps
+import java.time.ZonedDateTime
 
 class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
                        usagePlanService: UsagePlanService,
@@ -31,7 +32,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
                        private val clock: Clock = Clock.systemUTC())
   extends SqsHandler with AwsIdRetriever {
 
-  private val isoTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE
+  private val isoTimeFormatter = DateTimeFormatter.ISO_INSTANT
 
   val AccessLogFormat: String =
     """{
@@ -65,7 +66,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
 
     val swagger: Swagger = swaggerService.createSwagger(input.getRecords.get(0).getBody)
     
-    swagger.getInfo().description("Updated by API Platform add-api-lambda at " + isoTimeFormatter.format(LocalDateTime.now(clock)))
+    swagger.getInfo().description("Published at " + isoTimeFormatter.format(ZonedDateTime.now(clock)))
     logger.log(s"Created swagger: ${toJson(swagger)}")
     getAwsRestApiIdByApiName(swagger.getInfo.getTitle) match {
       case Some(restApiId) => putApi(restApiId, swagger)

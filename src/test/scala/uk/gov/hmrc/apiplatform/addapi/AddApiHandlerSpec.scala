@@ -93,7 +93,7 @@ class AddApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar wit
 
       addApiHandler.handleInput(sqsEvent, mockContext)
 
-      swagger.getInfo().getDescription() shouldBe "Updated by API Platform add-api-lambda at 2023-10-02" 
+      swagger.getInfo().getDescription() shouldBe "Published at 2023-10-02T10:15:30Z" 
     }
 
     "correctly convert request event into ImportRestApiRequest with correct configuration" in new StandardSetup {

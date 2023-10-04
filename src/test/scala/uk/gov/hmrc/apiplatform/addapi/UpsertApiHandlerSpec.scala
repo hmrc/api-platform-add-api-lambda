@@ -73,7 +73,7 @@ class UpsertApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
         "update_usage_plan_queue" -> "arn:queue",
         "access_log_arn" -> loggingDestinationArn)
     val updateApiHandler =
-      new UpsertApiHandler(mockAPIGatewayClient, mockUsagePlanService, mockWafRegionalClient, mockDeploymentService, mockSwaggerService, environment, Clock.fixed(Instant.parse("2023-10-02T10:15:30.00Z"), ZoneId.of("UTC")))
+      new UpsertApiHandler(mockAPIGatewayClient, mockUsagePlanService, mockWafRegionalClient, mockDeploymentService, mockSwaggerService, environment, Clock.fixed(Instant.parse("2023-10-02T18:15:30.00Z"), ZoneId.of("UTC")))
   }
 
   trait SetupWithoutEndpointType extends Setup {
@@ -113,7 +113,7 @@ class UpsertApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
 
       updateApiHandler.handleInput(sqsEvent, mockContext)
 
-      swagger.getInfo().getDescription() shouldEqual "Updated by API Platform add-api-lambda at 2023-10-02"
+      swagger.getInfo().getDescription() shouldEqual "Published at 2023-10-02T18:15:30Z"
     }
 
     "correctly convert request event into PutRestApiRequest with correct configuration" in new StandardSetup {
