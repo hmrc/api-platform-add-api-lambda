@@ -1,7 +1,8 @@
 package uk.gov.hmrc.apiplatform.addapi
 
+import com.amazonaws.services.lambda.runtime.Context
+import com.amazonaws.services.lambda.runtime.LambdaLogger
 import com.amazonaws.services.lambda.runtime.events.SQSEvent
-import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
 import io.swagger.models.Swagger
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
@@ -14,17 +15,24 @@ import uk.gov.hmrc.api_platform_manage_api.AwsApiGatewayClient.awsApiGatewayClie
 import uk.gov.hmrc.api_platform_manage_api._
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.SqsHandler
 
+import java.time.Clock
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import scala.collection.JavaConversions.mapAsJavaMap
 import scala.collection.JavaConverters._
 import scala.language.postfixOps
+import java.time.ZonedDateTime
 
 class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
                        usagePlanService: UsagePlanService,
                        wafRegionalClient: WafRegionalClient,
                        deploymentService: DeploymentService,
                        swaggerService: SwaggerService,
-                       environment: Map[String, String])
+                       environment: Map[String, String],
+                       private val clock: Clock = Clock.systemUTC())
   extends SqsHandler with AwsIdRetriever {
+
+  private val isoTimeFormatter = DateTimeFormatter.ISO_INSTANT
 
   val AccessLogFormat: String =
     """{
@@ -57,6 +65,8 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
     }
 
     val swagger: Swagger = swaggerService.createSwagger(input.getRecords.get(0).getBody)
+    
+    swagger.getInfo().description("Published at " + isoTimeFormatter.format(ZonedDateTime.now(clock)))
     logger.log(s"Created swagger: ${toJson(swagger)}")
     getAwsRestApiIdByApiName(swagger.getInfo.getTitle) match {
       case Some(restApiId) => putApi(restApiId, swagger)
@@ -65,7 +75,6 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
   }
 
   private def putApi(restApiId: String, swagger: Swagger)(implicit logger: LambdaLogger): Unit = {
-
     val putApiRequest: PutRestApiRequest = PutRestApiRequest
       .builder()
       .body(fromUtf8String(toJson(swagger)))
