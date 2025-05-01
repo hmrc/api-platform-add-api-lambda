@@ -4,7 +4,7 @@
 String target_file = "${env.JOB_BASE_NAME}.zip"
 
 pipeline {
-    agent any
+    agent { label 'docker' }
 
     stages {
         stage('Build artefact') {
