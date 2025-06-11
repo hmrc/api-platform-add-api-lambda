@@ -10,7 +10,7 @@ import software.amazon.awssdk.services.sqs.model.{SendMessageRequest, SendMessag
 import uk.gov.hmrc.api_platform_manage_api.AwsApiGatewayClient.awsApiGatewayClient
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.JsonMapper
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.language.postfixOps
 
 class UsagePlanService(apiGatewayClient: ApiGatewayClient,
@@ -52,7 +52,7 @@ class UsagePlanService(apiGatewayClient: ApiGatewayClient,
   private def findExistingSubscriptions(usagePlanId: String): Seq[String] = {
     apiGatewayClient
       .getUsagePlan(GetUsagePlanRequest.builder().usagePlanId(usagePlanId).build())
-      .apiStages().asScala
+      .apiStages().asScala.toSeq
       .map(_.apiId)
   }
 

@@ -6,11 +6,9 @@ import com.amazonaws.services.lambda.runtime.events.SQSEvent
 import com.amazonaws.services.lambda.runtime.events.SQSEvent.SQSMessage
 import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
 import io.swagger.models.{Info, Swagger}
-import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.{times, verify, when}
 import org.mockito.{ArgumentCaptor, Mockito}
-import org.scalatest._
-import org.scalatest.mockito.MockitoSugar
+
+import org.mockito.scalatest.MockitoSugar
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
 import software.amazon.awssdk.services.apigateway.model.EndpointType.{PRIVATE, REGIONAL}
@@ -19,16 +17,18 @@ import software.amazon.awssdk.services.apigateway.model.PutMode.OVERWRITE
 import software.amazon.awssdk.services.apigateway.model._
 import software.amazon.awssdk.services.waf.model.DisassociateWebAclRequest
 import software.amazon.awssdk.services.waf.regional.WafRegionalClient
+
 import uk.gov.hmrc.api_platform_manage_api.{AccessLogConfiguration, DeploymentService, NoCloudWatchLogging, SwaggerService}
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.JsonMapper
-
-import scala.collection.JavaConversions._
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
 
-class UpsertApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar with JsonMapper {
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpec
+
+class UpsertApiHandlerSpec extends AnyWordSpec with Matchers with MockitoSugar with JsonMapper {
 
   trait Setup {
     val usagePlans: Map[String, String] = Map("BRONZE" -> "1", "SILVER" -> "2")
@@ -41,26 +41,27 @@ class UpsertApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
     val message = new SQSMessage()
     message.setBody(requestBody)
     val sqsEvent = new SQSEvent()
-    sqsEvent.setRecords(List(message))
+    sqsEvent.setRecords(List(message).asJava)
     val loggingDestinationArn: String = "aws:arn:1234567890"
 
-    val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient]
-    val mockUsagePlanService: UsagePlanService = mock[UsagePlanService]
-    val mockWafRegionalClient: WafRegionalClient = mock[WafRegionalClient]
-    val mockSwaggerService: SwaggerService = mock[SwaggerService]
-    val mockDeploymentService: DeploymentService = mock[DeploymentService]
-    val mockContext: Context = mock[Context]
-    val mockLambdaLogger: LambdaLogger = mock[LambdaLogger]
+    val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient](withSettings.lenient())
+    val mockUsagePlanService: UsagePlanService = mock[UsagePlanService](withSettings.lenient())
+    val mockWafRegionalClient: WafRegionalClient = mock[WafRegionalClient](withSettings.lenient())
+    val mockSwaggerService: SwaggerService = mock[SwaggerService](withSettings.lenient())
+    val mockDeploymentService: DeploymentService = mock[DeploymentService](withSettings.lenient())
+    val mockContext: Context = mock[Context](withSettings.lenient())
+    val mockLambdaLogger: LambdaLogger = mock[LambdaLogger](withSettings.lenient())
+
     when(mockContext.getLogger).thenReturn(mockLambdaLogger)
     when(mockAPIGatewayClient.getRestApi(any[GetRestApiRequest]))
       .thenReturn(GetRestApiResponse.builder().endpointConfiguration(EndpointConfiguration.builder().types(REGIONAL).build()).build())
     when(mockAPIGatewayClient.getRestApis(any[GetRestApisRequest])).thenReturn(buildMatchingRestApisResponse(apiId, apiName))
     when(mockAPIGatewayClient.getUsagePlan(any[GetUsagePlanRequest])).thenReturn(GetUsagePlanResponse.builder().build())
 
-    val swagger: Swagger = new Swagger().
-      host("localhost").
-      info(new Info().title(apiName).version(version)).
-      basePath(s"/$context")
+    val swagger: Swagger = new Swagger()
+      .host("localhost")
+      .info(new Info().title(apiName).version(version))
+      .basePath(s"/$context")
     when(mockSwaggerService.createSwagger(any[String])).thenReturn(swagger)
   }
 
@@ -113,7 +114,7 @@ class UpsertApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
 
       updateApiHandler.handleInput(sqsEvent, mockContext)
 
-      swagger.getInfo().getDescription() shouldEqual "Published at 2023-10-02T18:15:30Z"
+      swagger.getInfo.getDescription shouldEqual "Published at 2023-10-02T18:15:30Z"
     }
 
     "correctly convert request event into PutRestApiRequest with correct configuration" in new StandardSetup {
@@ -239,14 +240,14 @@ class UpsertApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
     }
 
     "throw exception if the event has no messages" in new StandardSetup {
-      sqsEvent.setRecords(List())
+      sqsEvent.setRecords(List().asJava)
 
       val exception: IllegalArgumentException = intercept[IllegalArgumentException](updateApiHandler.handleInput(sqsEvent, mockContext))
       exception.getMessage shouldEqual "Invalid number of records: 0"
     }
 
     "throw exception if the event has multiple messages" in new StandardSetup {
-      sqsEvent.setRecords(List(message, message))
+      sqsEvent.setRecords(List(message, message).asJava)
 
       val exception: IllegalArgumentException = intercept[IllegalArgumentException](updateApiHandler.handleInput(sqsEvent, mockContext))
       exception.getMessage shouldEqual "Invalid number of records: 2"
@@ -255,8 +256,8 @@ class UpsertApiHandlerSpec extends WordSpecLike with Matchers with MockitoSugar 
 
   "AccessLogFormat" should {
     "be a single line string" in new StandardSetup {
-      updateApiHandler.AccessLogFormat should not include ("\n")
-      updateApiHandler.AccessLogFormat should not include ("\r")
+      updateApiHandler.AccessLogFormat should not include "\n"
+      updateApiHandler.AccessLogFormat should not include "\r"
     }
   }
 

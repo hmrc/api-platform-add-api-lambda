@@ -16,10 +16,8 @@ import uk.gov.hmrc.api_platform_manage_api._
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.SqsHandler
 
 import java.time.Clock
-import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import scala.collection.JavaConversions.mapAsJavaMap
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.language.postfixOps
 import java.time.ZonedDateTime
 
@@ -67,7 +65,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
 
     val swagger: Swagger = swaggerService.createSwagger(input.getRecords.get(0).getBody)
     
-    swagger.getInfo().description("Published at " + isoTimeFormatter.format(ZonedDateTime.now(clock)))
+    swagger.getInfo.description("Published at " + isoTimeFormatter.format(ZonedDateTime.now(clock)))
     logger.log(s"Created swagger: ${toJson(swagger)}")
     getAwsRestApiIdByApiName(swagger.getInfo.getTitle) match {
       case Some(restApiId) => putApi(restApiId, swagger)
@@ -117,7 +115,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
     val importApiRequest: ImportRestApiRequest = ImportRestApiRequest
       .builder()
       .body(fromUtf8String(toJson(swagger)))
-      .parameters(mapAsJavaMap(Map("endpointConfigurationTypes" -> environment.getOrElse("endpoint_type", "PRIVATE"))))
+      .parameters(Map("endpointConfigurationTypes" -> environment.getOrElse("endpoint_type", "PRIVATE")).asJava)
       .failOnWarnings(true)
       .build()
 
