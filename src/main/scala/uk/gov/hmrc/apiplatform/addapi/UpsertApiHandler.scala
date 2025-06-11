@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 HM Revenue & Customs
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package uk.gov.hmrc.apiplatform.addapi
 
 import com.amazonaws.services.lambda.runtime.Context
@@ -18,7 +34,6 @@ import uk.gov.hmrc.aws_gateway_proxied_request_lambda.SqsHandler
 import java.time.Clock
 import java.time.format.DateTimeFormatter
 import scala.jdk.CollectionConverters._
-import scala.language.postfixOps
 import java.time.ZonedDateTime
 
 class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
@@ -53,7 +68,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
       |"extended.contextErrorMessage": "$context.error.message",
       |"apiId": "$context.apiId"}""".stripMargin.replaceAll("[\n\r]","")
 
-  def this() {
+  def this() = {
     this(awsApiGatewayClient, new UsagePlanService, WafRegionalClient.create(), new DeploymentService(awsApiGatewayClient), new SwaggerService, sys.env)
   }
 
@@ -141,7 +156,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
     usagePlanService.addApiToUsagePlans(restApiId, titleWithoutVersion)
   }
 
-  private def ensureNoWebACL(restApiId: String)(implicit logger: LambdaLogger): Unit = {
+  private def ensureNoWebACL(restApiId: String): Unit = {
     val stageArn: String = s"arn:aws:apigateway:${environment("AWS_REGION")}::/restapis/$restApiId/stages/current"
 
     val request: DisassociateWebAclRequest = DisassociateWebAclRequest.builder().resourceArn(stageArn).build()

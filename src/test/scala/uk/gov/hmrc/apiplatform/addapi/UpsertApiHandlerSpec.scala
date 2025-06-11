@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 HM Revenue & Customs
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package uk.gov.hmrc.apiplatform.addapi
 
 import java.util.UUID
@@ -27,6 +43,7 @@ import java.time.ZoneId
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
+import org.mockito.Strictness.Lenient
 
 class UpsertApiHandlerSpec extends AnyWordSpec with Matchers with MockitoSugar with JsonMapper {
 
@@ -44,13 +61,13 @@ class UpsertApiHandlerSpec extends AnyWordSpec with Matchers with MockitoSugar w
     sqsEvent.setRecords(List(message).asJava)
     val loggingDestinationArn: String = "aws:arn:1234567890"
 
-    val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient](withSettings.lenient())
-    val mockUsagePlanService: UsagePlanService = mock[UsagePlanService](withSettings.lenient())
-    val mockWafRegionalClient: WafRegionalClient = mock[WafRegionalClient](withSettings.lenient())
-    val mockSwaggerService: SwaggerService = mock[SwaggerService](withSettings.lenient())
-    val mockDeploymentService: DeploymentService = mock[DeploymentService](withSettings.lenient())
-    val mockContext: Context = mock[Context](withSettings.lenient())
-    val mockLambdaLogger: LambdaLogger = mock[LambdaLogger](withSettings.lenient())
+    val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient](withSettings.strictness(Lenient))
+    val mockUsagePlanService: UsagePlanService = mock[UsagePlanService](withSettings.strictness(Lenient))
+    val mockWafRegionalClient: WafRegionalClient = mock[WafRegionalClient](withSettings.strictness(Lenient))
+    val mockSwaggerService: SwaggerService = mock[SwaggerService](withSettings.strictness(Lenient))
+    val mockDeploymentService: DeploymentService = mock[DeploymentService](withSettings.strictness(Lenient))
+    val mockContext: Context = mock[Context](withSettings.strictness(Lenient))
+    val mockLambdaLogger: LambdaLogger = mock[LambdaLogger](withSettings.strictness(Lenient))
 
     when(mockContext.getLogger).thenReturn(mockLambdaLogger)
     when(mockAPIGatewayClient.getRestApi(any[GetRestApiRequest]))

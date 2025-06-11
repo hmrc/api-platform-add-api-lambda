@@ -20,10 +20,10 @@ lazy val lambda = (project in file("."))
   .settings(
     name := appName,
     scalaVersion := "2.13.16",
+    majorVersion := 0,
     libraryDependencies ++= appDependencies,
     Test / parallelExecution := false,
-    Test / fork := false,
-    retrieveManaged := true
+    Test / fork := false
   )
   .settings(
     assembly / assemblyOutputPath := file(s"./$appName.zip"),
@@ -38,6 +38,7 @@ lazy val lambda = (project in file("."))
         oldStrategy(path)
     }
   )
+  .settings(Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.AllLibraryJars)
 
 // Coverage configuration
 coverageMinimumStmtTotal := 90

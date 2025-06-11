@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 HM Revenue & Customs
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package uk.gov.hmrc.apiplatform.addapi
 
 import java.util.UUID
@@ -14,10 +30,9 @@ import software.amazon.awssdk.services.sqs.SqsClient
 import software.amazon.awssdk.services.sqs.model.{SendMessageRequest, SendMessageResponse}
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.JsonMapper
 
-import scala.jdk.CollectionConverters._
-
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
+import org.mockito.Strictness.Lenient
 
 class UsagePlanServiceSpec extends AnyWordSpec with Matchers with MockitoSugar with JsonMapper {
 
@@ -29,9 +44,9 @@ class UsagePlanServiceSpec extends AnyWordSpec with Matchers with MockitoSugar w
     val apiPriority: Map[String, String] = Map(highPriorityApiNameWithoutVersion -> "HIGH")
     val usagePlans: Map[String, String] = Map("BRONZE" -> "1", "SILVER" -> "2", "BRONZE_HIGH" -> "3", "SILVER_HIGH" -> "4")
 
-    val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient](withSettings.lenient())
-    val mockSqsClient: SqsClient = mock[SqsClient](withSettings.lenient())
-    implicit val mockLambdaLogger: LambdaLogger = mock[LambdaLogger](withSettings.lenient())
+    val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient](withSettings.strictness(Lenient))
+    val mockSqsClient: SqsClient = mock[SqsClient](withSettings.strictness(Lenient))
+    implicit val mockLambdaLogger: LambdaLogger = mock[LambdaLogger](withSettings.strictness(Lenient))
     doNothing.when(mockLambdaLogger).log(*[String])
 
     val environment: Map[String, String] = Map("base_usage_plans" -> toJson(baseUsagePlans),
