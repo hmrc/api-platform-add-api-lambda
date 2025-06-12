@@ -5,7 +5,7 @@ lazy val appDependencies: Seq[ModuleID] = compileDependencies ++ testDependencie
 lazy val awsSdkVersion = "2.31.59"
 
 lazy val compileDependencies = Seq(
-  "uk.gov.hmrc"            %% "api-platform-manage-api" % "0.47.0-SNAPSHOT",
+  "uk.gov.hmrc"            %% "api-platform-manage-api" % "0.47.0",
   "software.amazon.awssdk"  % "sqs"                     % awsSdkVersion,
   "software.amazon.awssdk"  % "waf"                     % awsSdkVersion
 )
