@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 HM Revenue & Customs
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package uk.gov.hmrc.apiplatform.addapi
 
 import com.amazonaws.services.lambda.runtime.Context
@@ -16,11 +32,8 @@ import uk.gov.hmrc.api_platform_manage_api._
 import uk.gov.hmrc.aws_gateway_proxied_request_lambda.SqsHandler
 
 import java.time.Clock
-import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import scala.collection.JavaConversions.mapAsJavaMap
-import scala.collection.JavaConverters._
-import scala.language.postfixOps
+import scala.jdk.CollectionConverters._
 import java.time.ZonedDateTime
 
 class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
@@ -55,7 +68,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
       |"extended.contextErrorMessage": "$context.error.message",
       |"apiId": "$context.apiId"}""".stripMargin.replaceAll("[\n\r]","")
 
-  def this() {
+  def this() = {
     this(awsApiGatewayClient, new UsagePlanService, WafRegionalClient.create(), new DeploymentService(awsApiGatewayClient), new SwaggerService, sys.env)
   }
 
@@ -67,7 +80,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
 
     val swagger: Swagger = swaggerService.createSwagger(input.getRecords.get(0).getBody)
     
-    swagger.getInfo().description("Published at " + isoTimeFormatter.format(ZonedDateTime.now(clock)))
+    swagger.getInfo.description("Published at " + isoTimeFormatter.format(ZonedDateTime.now(clock)))
     logger.log(s"Created swagger: ${toJson(swagger)}")
     getAwsRestApiIdByApiName(swagger.getInfo.getTitle) match {
       case Some(restApiId) => putApi(restApiId, swagger)
@@ -117,7 +130,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
     val importApiRequest: ImportRestApiRequest = ImportRestApiRequest
       .builder()
       .body(fromUtf8String(toJson(swagger)))
-      .parameters(mapAsJavaMap(Map("endpointConfigurationTypes" -> environment.getOrElse("endpoint_type", "PRIVATE"))))
+      .parameters(Map("endpointConfigurationTypes" -> environment.getOrElse("endpoint_type", "PRIVATE")).asJava)
       .failOnWarnings(true)
       .build()
 
@@ -143,7 +156,7 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
     usagePlanService.addApiToUsagePlans(restApiId, titleWithoutVersion)
   }
 
-  private def ensureNoWebACL(restApiId: String)(implicit logger: LambdaLogger): Unit = {
+  private def ensureNoWebACL(restApiId: String): Unit = {
     val stageArn: String = s"arn:aws:apigateway:${environment("AWS_REGION")}::/restapis/$restApiId/stages/current"
 
     val request: DisassociateWebAclRequest = DisassociateWebAclRequest.builder().resourceArn(stageArn).build()
