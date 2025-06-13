@@ -1,6 +1,8 @@
 FROM amazonlinux:2
 
-RUN yum install -y java-1.8.0-openjdk-devel
+RUN rpm --import https://yum.corretto.aws/corretto.key
+RUN curl -L -o /etc/yum.repos.d/corretto.repo https://yum.corretto.aws/corretto.repo
+RUN yum install -y java-21-openjdk-devel
 RUN curl -L https://www.scala-sbt.org/sbt-rpm.repo > /etc/yum.repos.d/sbt-rpm.repo
-RUN yum install -y sbt-1.3.13
+RUN yum install -y sbt-1.10.10
 RUN sbt update
