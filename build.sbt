@@ -20,10 +20,12 @@ lazy val lambda = (project in file("."))
   .settings(
     name := appName,
     scalaVersion := "2.13.16",
-    majorVersion := 0,
     libraryDependencies ++= appDependencies,
     Test / parallelExecution := false,
     Test / fork := false
+  )
+  .settings(
+    resolvers += "hmrc-releases" at "https://artefacts.tax.service.gov.uk/artifactory/hmrc-releases/",
   )
   .settings(
     assembly / assemblyOutputPath := file(s"./$appName.zip"),
