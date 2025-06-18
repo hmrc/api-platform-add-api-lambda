@@ -30,6 +30,9 @@ lazy val lambda = (project in file("."))
   .settings(
     assembly / assemblyOutputPath := file(s"./$appName.zip"),
     assembly / assemblyMergeStrategy := {
+      case PathList("module-info.class") => MergeStrategy.first
+      case PathList("META-INF", "versions", "9", "module-info.class") => MergeStrategy.last
+      case PathList("META-INF", xs @ _*) => MergeStrategy.first
       case path if path.endsWith("io.netty.versions.properties") => MergeStrategy.discard
       case path if path.endsWith("BuildInfo$.class") => MergeStrategy.discard
       case path if path.endsWith("codegen-resources/customization.config") => MergeStrategy.discard
