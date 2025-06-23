@@ -15,6 +15,7 @@ pipeline {
                 }
             }
             steps {
+                sh(script: "sbt test")
                 sh(script: "sbt assembly")
                 stash(
                     name: 'artefact',
