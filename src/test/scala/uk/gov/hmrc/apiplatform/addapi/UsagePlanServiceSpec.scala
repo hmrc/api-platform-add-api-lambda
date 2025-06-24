@@ -17,12 +17,14 @@
 package uk.gov.hmrc.apiplatform.addapi
 
 import java.util.UUID
+import scala.jdk.CollectionConverters._
 
 import com.amazonaws.services.lambda.runtime.LambdaLogger
-
-import org.mockito.captor.ArgCaptor
+import org.mockito.ArgumentCaptor
+import org.mockito.ArgumentMatchers.any
+import org.mockito.Mockito.{atLeastOnce, verify, when}
 import org.mockito.invocation.InvocationOnMock
-import org.mockito.scalatest.MockitoSugar
+import org.mockito.stubbing.Answer
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
 import software.amazon.awssdk.services.apigateway.model.Op.{ADD, REMOVE}
 import software.amazon.awssdk.services.apigateway.model._
@@ -32,7 +34,7 @@ import software.amazon.awssdk.services.sqs.model.{SendMessageRequest, SendMessag
 import uk.gov.hmrc.api_platform_manage_api.utils.JsonMapper
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import org.mockito.Strictness.Lenient
+import org.scalatestplus.mockito.MockitoSugar
 
 class UsagePlanServiceSpec extends AnyWordSpec with Matchers with MockitoSugar with JsonMapper {
 
@@ -44,10 +46,9 @@ class UsagePlanServiceSpec extends AnyWordSpec with Matchers with MockitoSugar w
     val apiPriority: Map[String, String] = Map(highPriorityApiNameWithoutVersion -> "HIGH")
     val usagePlans: Map[String, String] = Map("BRONZE" -> "1", "SILVER" -> "2", "BRONZE_HIGH" -> "3", "SILVER_HIGH" -> "4")
 
-    val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient](withSettings.strictness(Lenient))
-    val mockSqsClient: SqsClient = mock[SqsClient](withSettings.strictness(Lenient))
-    implicit val mockLambdaLogger: LambdaLogger = mock[LambdaLogger](withSettings.strictness(Lenient))
-    doNothing.when(mockLambdaLogger).log(*[String])
+    val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient]
+    val mockSqsClient: SqsClient = mock[SqsClient]
+    implicit val mockLambdaLogger: LambdaLogger = mock[LambdaLogger]
 
     val environment: Map[String, String] = Map("base_usage_plans" -> toJson(baseUsagePlans),
       "api_priority" -> toJson(apiPriority), "usage_plans" -> toJson(usagePlans), "update_usage_plan_queue" -> "arn:queue")
@@ -63,8 +64,8 @@ class UsagePlanServiceSpec extends AnyWordSpec with Matchers with MockitoSugar w
 
     val builder = GetUsagePlanResponse.builder()
 
-    def getUsagePlanAnswer(usagePlansIds: Seq[String]): InvocationOnMock => GetUsagePlanResponse = {
-      invocationOnMock => {
+    class GetUsagePlanAnswer(var usagePlansIds: Seq[String]) extends Answer[GetUsagePlanResponse] {
+      override def answer(invocationOnMock: InvocationOnMock): GetUsagePlanResponse = {
         val request: GetUsagePlanRequest = invocationOnMock.getArgument(0)
         if (usagePlansIds.contains(request.usagePlanId)) {
           builder.apiStages(ApiStage.builder().apiId(apiId).stage("current").build()).build()
@@ -82,9 +83,9 @@ class UsagePlanServiceSpec extends AnyWordSpec with Matchers with MockitoSugar w
 
       usagePlanService.addApiToUsagePlans(apiId, apiNameWithoutVersion)
 
-      val sendMessageRequestCaptor = ArgCaptor[SendMessageRequest]
+      val sendMessageRequestCaptor = ArgumentCaptor.forClass(classOf[SendMessageRequest])
       verify(mockSqsClient, atLeastOnce).sendMessage(sendMessageRequestCaptor.capture)
-      val capturedRequests: Seq[SendMessageRequest] = sendMessageRequestCaptor.values
+      val capturedRequests: Seq[SendMessageRequest] = sendMessageRequestCaptor.getAllValues.asScala.toSeq
       capturedRequests should have size 2
       verifyUsagePlanUpdate(
         (capturedRequests.head.messageBody, "BRONZE", ADD),
@@ -98,9 +99,9 @@ class UsagePlanServiceSpec extends AnyWordSpec with Matchers with MockitoSugar w
 
       usagePlanService.addApiToUsagePlans(apiId, highPriorityApiNameWithoutVersion)
 
-      val sendMessageRequestCaptor = ArgCaptor[SendMessageRequest]
+      val sendMessageRequestCaptor = ArgumentCaptor.forClass(classOf[SendMessageRequest])
       verify(mockSqsClient, atLeastOnce).sendMessage(sendMessageRequestCaptor.capture)
-      val capturedRequests: Seq[SendMessageRequest] = sendMessageRequestCaptor.values
+      val capturedRequests: Seq[SendMessageRequest] = sendMessageRequestCaptor.getAllValues.asScala.toSeq
       capturedRequests should have size 2
       verifyUsagePlanUpdate(
         (capturedRequests.head.messageBody, "BRONZE_HIGH", ADD),
@@ -110,39 +111,39 @@ class UsagePlanServiceSpec extends AnyWordSpec with Matchers with MockitoSugar w
 
     "not add the API to usage plans that already contain the API" in new Setup {
       when(mockSqsClient.sendMessage(any[SendMessageRequest])).thenReturn(SendMessageResponse.builder().build())
-      when(mockAPIGatewayClient.getUsagePlan(any[GetUsagePlanRequest])).thenAnswer(getUsagePlanAnswer(Seq(usagePlans("SILVER"))))
+      when(mockAPIGatewayClient.getUsagePlan(any[GetUsagePlanRequest])).thenAnswer(new GetUsagePlanAnswer(Seq(usagePlans("SILVER"))))
 
       usagePlanService.addApiToUsagePlans(apiId, apiNameWithoutVersion)
 
-      val sendMessageRequestCaptor = ArgCaptor[SendMessageRequest]
+      val sendMessageRequestCaptor = ArgumentCaptor.forClass(classOf[SendMessageRequest])
       verify(mockSqsClient).sendMessage(sendMessageRequestCaptor.capture)
-      val capturedRequests: Seq[SendMessageRequest] = sendMessageRequestCaptor.values
+      val capturedRequests: Seq[SendMessageRequest] = sendMessageRequestCaptor.getAllValues.asScala.toSeq
       capturedRequests should have size 1
       verifyUsagePlanUpdate((capturedRequests.head.messageBody, "BRONZE", ADD))
     }
 
     "not add the API to usage plans that already contain the high priority API" in new Setup {
       when(mockSqsClient.sendMessage(any[SendMessageRequest])).thenReturn(SendMessageResponse.builder().build())
-      when(mockAPIGatewayClient.getUsagePlan(any[GetUsagePlanRequest])).thenAnswer(getUsagePlanAnswer(Seq(usagePlans("SILVER_HIGH"))))
+      when(mockAPIGatewayClient.getUsagePlan(any[GetUsagePlanRequest])).thenAnswer(new GetUsagePlanAnswer(Seq(usagePlans("SILVER_HIGH"))))
 
       usagePlanService.addApiToUsagePlans(apiId, highPriorityApiNameWithoutVersion)
 
-      val sendMessageRequestCaptor = ArgCaptor[SendMessageRequest]
+      val sendMessageRequestCaptor = ArgumentCaptor.forClass(classOf[SendMessageRequest])
       verify(mockSqsClient).sendMessage(sendMessageRequestCaptor.capture)
-      val capturedRequests: Seq[SendMessageRequest] = sendMessageRequestCaptor.values
+      val capturedRequests: Seq[SendMessageRequest] = sendMessageRequestCaptor.getAllValues.asScala.toSeq
       capturedRequests should have size 1
       verifyUsagePlanUpdate((capturedRequests.head.messageBody, "BRONZE_HIGH", ADD))
     }
 
     "remove the API from usage plans of a different priority" in new Setup {
       when(mockSqsClient.sendMessage(any[SendMessageRequest])).thenReturn(SendMessageResponse.builder().build())
-      when(mockAPIGatewayClient.getUsagePlan(any[GetUsagePlanRequest])).thenAnswer(getUsagePlanAnswer(Seq(usagePlans("BRONZE_HIGH"), usagePlans("SILVER_HIGH"))))
+      when(mockAPIGatewayClient.getUsagePlan(any[GetUsagePlanRequest])).thenAnswer(new GetUsagePlanAnswer(Seq(usagePlans("BRONZE_HIGH"), usagePlans("SILVER_HIGH"))))
 
       usagePlanService.addApiToUsagePlans(apiId, apiNameWithoutVersion)
 
-      val sendMessageRequestCaptor = ArgCaptor[SendMessageRequest]
+      val sendMessageRequestCaptor = ArgumentCaptor.forClass(classOf[SendMessageRequest])
       verify(mockSqsClient, atLeastOnce).sendMessage(sendMessageRequestCaptor.capture)
-      val capturedRequests: Seq[SendMessageRequest] = sendMessageRequestCaptor.values
+      val capturedRequests: Seq[SendMessageRequest] = sendMessageRequestCaptor.getAllValues.asScala.toSeq
       capturedRequests should have size 4
       verifyUsagePlanUpdate(
         (capturedRequests.head.messageBody, "BRONZE_HIGH", REMOVE),
