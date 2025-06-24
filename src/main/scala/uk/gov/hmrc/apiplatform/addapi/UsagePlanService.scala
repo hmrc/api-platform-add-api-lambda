@@ -24,7 +24,7 @@ import software.amazon.awssdk.services.apigateway.model._
 import software.amazon.awssdk.services.sqs.SqsClient
 import software.amazon.awssdk.services.sqs.model.{SendMessageRequest, SendMessageResponse}
 import uk.gov.hmrc.api_platform_manage_api.AwsApiGatewayClient.awsApiGatewayClient
-import uk.gov.hmrc.aws_gateway_proxied_request_lambda.JsonMapper
+import uk.gov.hmrc.api_platform_manage_api.utils.JsonMapper
 
 import scala.jdk.CollectionConverters._
 

@@ -29,7 +29,7 @@ import software.amazon.awssdk.services.waf.model.DisassociateWebAclRequest
 import software.amazon.awssdk.services.waf.regional.WafRegionalClient
 import uk.gov.hmrc.api_platform_manage_api.AwsApiGatewayClient.awsApiGatewayClient
 import uk.gov.hmrc.api_platform_manage_api._
-import uk.gov.hmrc.aws_gateway_proxied_request_lambda.SqsHandler
+import uk.gov.hmrc.api_platform_manage_api.utils.SqsHandler
 
 import java.time.Clock
 import java.time.format.DateTimeFormatter

@@ -28,8 +28,8 @@ import software.amazon.awssdk.services.apigateway.model.Op.{ADD, REMOVE}
 import software.amazon.awssdk.services.apigateway.model._
 import software.amazon.awssdk.services.sqs.SqsClient
 import software.amazon.awssdk.services.sqs.model.{SendMessageRequest, SendMessageResponse}
-import uk.gov.hmrc.aws_gateway_proxied_request_lambda.JsonMapper
 
+import uk.gov.hmrc.api_platform_manage_api.utils.JsonMapper
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.mockito.Strictness.Lenient
@@ -61,13 +61,15 @@ class UsagePlanServiceSpec extends AnyWordSpec with Matchers with MockitoSugar w
       }
     }
 
+    val builder = GetUsagePlanResponse.builder()
+
     def getUsagePlanAnswer(usagePlansIds: Seq[String]): InvocationOnMock => GetUsagePlanResponse = {
       invocationOnMock => {
         val request: GetUsagePlanRequest = invocationOnMock.getArgument(0)
         if (usagePlansIds.contains(request.usagePlanId)) {
-          GetUsagePlanResponse.builder().apiStages(ApiStage.builder().apiId(apiId).stage("current").build()).build()
+          builder.apiStages(ApiStage.builder().apiId(apiId).stage("current").build()).build()
         } else {
-          GetUsagePlanResponse.builder().build()
+          builder.apiStages(ApiStage.builder().build()).build()
         }
       }
     }
@@ -76,7 +78,7 @@ class UsagePlanServiceSpec extends AnyWordSpec with Matchers with MockitoSugar w
   "Add API to usage plans" should {
     "only add the API to base usage plans when it's not a high priority API" in new Setup {
       when(mockSqsClient.sendMessage(any[SendMessageRequest])).thenReturn(SendMessageResponse.builder().build())
-      when(mockAPIGatewayClient.getUsagePlan(any[GetUsagePlanRequest])).thenAnswer(getUsagePlanAnswer(Seq.empty))
+      when(mockAPIGatewayClient.getUsagePlan(any[GetUsagePlanRequest])).thenReturn(builder.build())
 
       usagePlanService.addApiToUsagePlans(apiId, apiNameWithoutVersion)
 
@@ -92,7 +94,7 @@ class UsagePlanServiceSpec extends AnyWordSpec with Matchers with MockitoSugar w
 
     "only add the API to high priority usage plans when it's a high priority API" in new Setup {
       when(mockSqsClient.sendMessage(any[SendMessageRequest])).thenReturn(SendMessageResponse.builder().build())
-      when(mockAPIGatewayClient.getUsagePlan(any[GetUsagePlanRequest])).thenAnswer(getUsagePlanAnswer(Seq.empty))
+      when(mockAPIGatewayClient.getUsagePlan(any[GetUsagePlanRequest])).thenReturn(builder.build())
 
       usagePlanService.addApiToUsagePlans(apiId, highPriorityApiNameWithoutVersion)
 

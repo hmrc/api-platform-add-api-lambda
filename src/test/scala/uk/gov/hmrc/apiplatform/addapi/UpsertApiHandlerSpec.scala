@@ -22,7 +22,8 @@ import com.amazonaws.services.lambda.runtime.events.SQSEvent
 import com.amazonaws.services.lambda.runtime.events.SQSEvent.SQSMessage
 import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
 import io.swagger.models.{Info, Swagger}
-import org.mockito.{ArgumentCaptor, Mockito}
+import org.mockito.captor.ArgCaptor
+import org.mockito.Mockito
 
 import org.mockito.scalatest.MockitoSugar
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
@@ -35,7 +36,7 @@ import software.amazon.awssdk.services.waf.model.DisassociateWebAclRequest
 import software.amazon.awssdk.services.waf.regional.WafRegionalClient
 
 import uk.gov.hmrc.api_platform_manage_api.{AccessLogConfiguration, DeploymentService, NoCloudWatchLogging, SwaggerService}
-import uk.gov.hmrc.aws_gateway_proxied_request_lambda.JsonMapper
+import uk.gov.hmrc.api_platform_manage_api.utils.JsonMapper
 import scala.jdk.CollectionConverters._
 import java.time.Clock
 import java.time.Instant
@@ -140,12 +141,13 @@ class UpsertApiHandlerSpec extends AnyWordSpec with Matchers with MockitoSugar w
           .id(apiId)
           .endpointConfiguration(EndpointConfiguration.builder().types(PRIVATE).build())
           .build()
-      val putRestApiRequestCaptor: ArgumentCaptor[PutRestApiRequest] = ArgumentCaptor.forClass(classOf[PutRestApiRequest])
-      when(mockAPIGatewayClient.putRestApi(putRestApiRequestCaptor.capture())).thenReturn(apiGatewayResponse)
+      when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
 
       updateApiHandler.handleInput(sqsEvent, mockContext)
 
-      val capturedRequest: PutRestApiRequest = putRestApiRequestCaptor.getValue
+      val putRestApiRequestCaptor = ArgCaptor[PutRestApiRequest]
+      verify(mockAPIGatewayClient).putRestApi(putRestApiRequestCaptor.capture)
+      val capturedRequest: PutRestApiRequest = putRestApiRequestCaptor.value
       capturedRequest.failOnWarnings shouldBe true
       capturedRequest.body shouldEqual fromUtf8String(toJson(swagger))
       capturedRequest.mode() shouldEqual OVERWRITE
@@ -159,12 +161,13 @@ class UpsertApiHandlerSpec extends AnyWordSpec with Matchers with MockitoSugar w
           .endpointConfiguration(EndpointConfiguration.builder().types(PRIVATE).build())
           .build()
       when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
-      val updateRestApiRequestCaptor: ArgumentCaptor[UpdateRestApiRequest] = ArgumentCaptor.forClass(classOf[UpdateRestApiRequest])
-      when(mockAPIGatewayClient.updateRestApi(updateRestApiRequestCaptor.capture())).thenReturn(UpdateRestApiResponse.builder().build())
+      when(mockAPIGatewayClient.updateRestApi(any[UpdateRestApiRequest])).thenReturn(UpdateRestApiResponse.builder().build())
 
       updateApiHandler.handleInput(sqsEvent, mockContext)
 
-      val capturedUpdateRequest: UpdateRestApiRequest = updateRestApiRequestCaptor.getValue
+      val updateRestApiRequestCaptor = ArgCaptor[UpdateRestApiRequest]
+      verify(mockAPIGatewayClient).updateRestApi(updateRestApiRequestCaptor.capture)
+      val capturedUpdateRequest: UpdateRestApiRequest = updateRestApiRequestCaptor.value
       val patchOperation: PatchOperation = capturedUpdateRequest.patchOperations().asScala.head
       patchOperation.op() shouldEqual REPLACE
       patchOperation.path() shouldEqual "/endpointConfiguration/types/PRIVATE"
@@ -191,12 +194,13 @@ class UpsertApiHandlerSpec extends AnyWordSpec with Matchers with MockitoSugar w
           .endpointConfiguration(EndpointConfiguration.builder().types(REGIONAL).build())
           .build()
       when(mockAPIGatewayClient.putRestApi(any[PutRestApiRequest])).thenReturn(apiGatewayResponse)
-      val updateRestApiRequestCaptor: ArgumentCaptor[UpdateRestApiRequest] = ArgumentCaptor.forClass(classOf[UpdateRestApiRequest])
-      when(mockAPIGatewayClient.updateRestApi(updateRestApiRequestCaptor.capture())).thenReturn(UpdateRestApiResponse.builder().build())
+      when(mockAPIGatewayClient.updateRestApi(any[UpdateRestApiRequest])).thenReturn(UpdateRestApiResponse.builder().build())
 
       updateApiHandler.handleInput(sqsEvent, mockContext)
 
-      val capturedUpdateRequest: UpdateRestApiRequest = updateRestApiRequestCaptor.getValue
+      val updateRestApiRequestCaptor = ArgCaptor[UpdateRestApiRequest]
+      verify(mockAPIGatewayClient).updateRestApi(updateRestApiRequestCaptor.capture)
+      val capturedUpdateRequest: UpdateRestApiRequest = updateRestApiRequestCaptor.value
       val patchOperation: PatchOperation = capturedUpdateRequest.patchOperations().asScala.head
       patchOperation.op() shouldEqual REPLACE
       patchOperation.path() shouldEqual "/endpointConfiguration/types/REGIONAL"
