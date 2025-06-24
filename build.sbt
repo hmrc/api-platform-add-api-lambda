@@ -11,9 +11,8 @@ lazy val compileDependencies = Seq(
 )
 
 lazy val testDependencies = Seq(
-  "org.scalatest"        %% "scalatest"                      % "3.2.19",
-  "com.vladsch.flexmark"  % "flexmark-all"                   % "0.64.8",
-  "org.mockito"          %% "mockito-scala-scalatest"        % "1.17.45"
+  "org.scalatest" %% "scalatest"               % "3.2.19",
+  "org.mockito"   %% "mockito-scala-scalatest" % "2.0.0"
 ).map(_ % Test)
 
 lazy val lambda = (project in file("."))
@@ -25,7 +24,7 @@ lazy val lambda = (project in file("."))
     Test / fork := false
   )
   .settings(
-    resolvers += "hmrc-releases" at "https://artefacts.tax.service.gov.uk/artifactory/hmrc-releases/",
+    resolvers += "hmrc-releases" at "https://artefacts.tax.service.gov.uk/artifactory/hmrc-releases/"
   )
   .settings(
     assembly / assemblyOutputPath := file(s"./$appName.zip"),
@@ -43,7 +42,6 @@ lazy val lambda = (project in file("."))
         oldStrategy(path)
     }
   )
-  .settings(Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.AllLibraryJars)
 
 // Coverage configuration
 coverageMinimumStmtTotal := 90
