@@ -22,13 +22,15 @@ import com.amazonaws.services.lambda.runtime.events.SQSEvent
 import com.amazonaws.services.lambda.runtime.events.SQSEvent.SQSMessage
 import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
 import io.swagger.models.{Info, Swagger}
-import org.mockito.captor.ArgCaptor
-import org.mockito.scalatest.MockitoSugar
+import org.mockito.ArgumentCaptor
+import org.mockito.ArgumentMatchers.any
+import org.mockito.Mockito.{times, verify, when}
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
 import software.amazon.awssdk.services.apigateway.model._
 import software.amazon.awssdk.services.waf.model.DisassociateWebAclRequest
 import software.amazon.awssdk.services.waf.regional.WafRegionalClient
+
 import uk.gov.hmrc.api_platform_manage_api.{AccessLogConfiguration, DeploymentService, NoCloudWatchLogging, SwaggerService}
 import uk.gov.hmrc.api_platform_manage_api.utils.JsonMapper
 import scala.jdk.CollectionConverters._
@@ -39,7 +41,7 @@ import java.time.ZoneId
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.Entry
-import org.mockito.Strictness.Lenient
+import org.scalatestplus.mockito.MockitoSugar
 
 class AddApiHandlerSpec extends AnyWordSpec with Matchers with MockitoSugar with JsonMapper {
 
@@ -57,16 +59,15 @@ class AddApiHandlerSpec extends AnyWordSpec with Matchers with MockitoSugar with
     sqsEvent.setRecords(List(message).asJava)
     val loggingDestinationArn: String = "aws:arn:1234567890"
 
-    val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient](withSettings.strictness(Lenient))
-    val mockUsagePlanService: UsagePlanService = mock[UsagePlanService](withSettings.strictness(Lenient))
-    val mockWafRegionalClient: WafRegionalClient = mock[WafRegionalClient](withSettings.strictness(Lenient))
-    val mockSwaggerService: SwaggerService = mock[SwaggerService](withSettings.strictness(Lenient))
-    val mockDeploymentService: DeploymentService = mock[DeploymentService](withSettings.strictness(Lenient))
-    val mockContext: Context = mock[Context](withSettings.strictness(Lenient))
-    val mockLambdaLogger: LambdaLogger = mock[LambdaLogger](withSettings.strictness(Lenient))
+    val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient]
+    val mockUsagePlanService: UsagePlanService = mock[UsagePlanService]
+    val mockWafRegionalClient: WafRegionalClient = mock[WafRegionalClient]
+    val mockSwaggerService: SwaggerService = mock[SwaggerService]
+    val mockDeploymentService: DeploymentService = mock[DeploymentService]
+    val mockContext: Context = mock[Context]
+    val mockLambdaLogger: LambdaLogger = mock[LambdaLogger]
     
     when(mockContext.getLogger).thenReturn(mockLambdaLogger)
-    doNothing.when(mockLambdaLogger).log(*[String])
     when(mockAPIGatewayClient.getRestApis(any[GetRestApisRequest])).thenReturn(buildNonMatchingRestApisResponse(3))
     when(mockAPIGatewayClient.getUsagePlan(any[GetUsagePlanRequest])).thenReturn(GetUsagePlanResponse.builder().build())
 
@@ -121,9 +122,9 @@ class AddApiHandlerSpec extends AnyWordSpec with Matchers with MockitoSugar with
 
       addApiHandler.handleInput(sqsEvent, mockContext)
 
-      val importRestApiRequestCaptor = ArgCaptor[ImportRestApiRequest]
+      val importRestApiRequestCaptor = ArgumentCaptor.forClass(classOf[ImportRestApiRequest])
       verify(mockAPIGatewayClient).importRestApi(importRestApiRequestCaptor.capture)
-      val capturedRequest: ImportRestApiRequest = importRestApiRequestCaptor.value
+      val capturedRequest: ImportRestApiRequest = importRestApiRequestCaptor.getValue
       capturedRequest.parameters should contain(Entry("endpointConfigurationTypes", "REGIONAL"))
       capturedRequest.failOnWarnings shouldBe true
       capturedRequest.body shouldEqual fromUtf8String(toJson(swagger))
@@ -135,9 +136,9 @@ class AddApiHandlerSpec extends AnyWordSpec with Matchers with MockitoSugar with
 
       addApiHandler.handleInput(sqsEvent, mockContext)
 
-      val importRestApiRequestCaptor = ArgCaptor[ImportRestApiRequest]
+      val importRestApiRequestCaptor = ArgumentCaptor.forClass(classOf[ImportRestApiRequest])
       verify(mockAPIGatewayClient).importRestApi(importRestApiRequestCaptor.capture)
-      val capturedRequest: ImportRestApiRequest = importRestApiRequestCaptor.value
+      val capturedRequest: ImportRestApiRequest = importRestApiRequestCaptor.getValue
       capturedRequest.parameters should contain(Entry("endpointConfigurationTypes", "PRIVATE"))
     }
 

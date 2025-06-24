@@ -22,10 +22,9 @@ import com.amazonaws.services.lambda.runtime.events.SQSEvent
 import com.amazonaws.services.lambda.runtime.events.SQSEvent.SQSMessage
 import com.amazonaws.services.lambda.runtime.{Context, LambdaLogger}
 import io.swagger.models.{Info, Swagger}
-import org.mockito.captor.ArgCaptor
-import org.mockito.Mockito
-
-import org.mockito.scalatest.MockitoSugar
+import org.mockito.ArgumentMatchers.any
+import org.mockito.Mockito.{times, verify, when}
+import org.mockito.{ArgumentCaptor, Mockito}
 import software.amazon.awssdk.core.SdkBytes.fromUtf8String
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient
 import software.amazon.awssdk.services.apigateway.model.EndpointType.{PRIVATE, REGIONAL}
@@ -44,7 +43,7 @@ import java.time.ZoneId
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import org.mockito.Strictness.Lenient
+import org.scalatestplus.mockito.MockitoSugar
 
 class UpsertApiHandlerSpec extends AnyWordSpec with Matchers with MockitoSugar with JsonMapper {
 
@@ -62,13 +61,13 @@ class UpsertApiHandlerSpec extends AnyWordSpec with Matchers with MockitoSugar w
     sqsEvent.setRecords(List(message).asJava)
     val loggingDestinationArn: String = "aws:arn:1234567890"
 
-    val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient](withSettings.strictness(Lenient))
-    val mockUsagePlanService: UsagePlanService = mock[UsagePlanService](withSettings.strictness(Lenient))
-    val mockWafRegionalClient: WafRegionalClient = mock[WafRegionalClient](withSettings.strictness(Lenient))
-    val mockSwaggerService: SwaggerService = mock[SwaggerService](withSettings.strictness(Lenient))
-    val mockDeploymentService: DeploymentService = mock[DeploymentService](withSettings.strictness(Lenient))
-    val mockContext: Context = mock[Context](withSettings.strictness(Lenient))
-    val mockLambdaLogger: LambdaLogger = mock[LambdaLogger](withSettings.strictness(Lenient))
+    val mockAPIGatewayClient: ApiGatewayClient = mock[ApiGatewayClient]
+    val mockUsagePlanService: UsagePlanService = mock[UsagePlanService]
+    val mockWafRegionalClient: WafRegionalClient = mock[WafRegionalClient]
+    val mockSwaggerService: SwaggerService = mock[SwaggerService]
+    val mockDeploymentService: DeploymentService = mock[DeploymentService]
+    val mockContext: Context = mock[Context]
+    val mockLambdaLogger: LambdaLogger = mock[LambdaLogger]
 
     when(mockContext.getLogger).thenReturn(mockLambdaLogger)
     when(mockAPIGatewayClient.getRestApi(any[GetRestApiRequest]))
@@ -145,9 +144,9 @@ class UpsertApiHandlerSpec extends AnyWordSpec with Matchers with MockitoSugar w
 
       updateApiHandler.handleInput(sqsEvent, mockContext)
 
-      val putRestApiRequestCaptor = ArgCaptor[PutRestApiRequest]
+      val putRestApiRequestCaptor = ArgumentCaptor.forClass(classOf[PutRestApiRequest])
       verify(mockAPIGatewayClient).putRestApi(putRestApiRequestCaptor.capture)
-      val capturedRequest: PutRestApiRequest = putRestApiRequestCaptor.value
+      val capturedRequest: PutRestApiRequest = putRestApiRequestCaptor.getValue
       capturedRequest.failOnWarnings shouldBe true
       capturedRequest.body shouldEqual fromUtf8String(toJson(swagger))
       capturedRequest.mode() shouldEqual OVERWRITE
@@ -165,9 +164,9 @@ class UpsertApiHandlerSpec extends AnyWordSpec with Matchers with MockitoSugar w
 
       updateApiHandler.handleInput(sqsEvent, mockContext)
 
-      val updateRestApiRequestCaptor = ArgCaptor[UpdateRestApiRequest]
+      val updateRestApiRequestCaptor = ArgumentCaptor.forClass(classOf[UpdateRestApiRequest])
       verify(mockAPIGatewayClient).updateRestApi(updateRestApiRequestCaptor.capture)
-      val capturedUpdateRequest: UpdateRestApiRequest = updateRestApiRequestCaptor.value
+      val capturedUpdateRequest: UpdateRestApiRequest = updateRestApiRequestCaptor.getValue
       val patchOperation: PatchOperation = capturedUpdateRequest.patchOperations().asScala.head
       patchOperation.op() shouldEqual REPLACE
       patchOperation.path() shouldEqual "/endpointConfiguration/types/PRIVATE"
@@ -198,9 +197,9 @@ class UpsertApiHandlerSpec extends AnyWordSpec with Matchers with MockitoSugar w
 
       updateApiHandler.handleInput(sqsEvent, mockContext)
 
-      val updateRestApiRequestCaptor = ArgCaptor[UpdateRestApiRequest]
+      val updateRestApiRequestCaptor = ArgumentCaptor.forClass(classOf[UpdateRestApiRequest])
       verify(mockAPIGatewayClient).updateRestApi(updateRestApiRequestCaptor.capture)
-      val capturedUpdateRequest: UpdateRestApiRequest = updateRestApiRequestCaptor.value
+      val capturedUpdateRequest: UpdateRestApiRequest = updateRestApiRequestCaptor.getValue
       val patchOperation: PatchOperation = capturedUpdateRequest.patchOperations().asScala.head
       patchOperation.op() shouldEqual REPLACE
       patchOperation.path() shouldEqual "/endpointConfiguration/types/REGIONAL"
