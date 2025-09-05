@@ -6,6 +6,12 @@ String target_file = "${env.JOB_BASE_NAME}.zip"
 pipeline {
     agent { label 'docker' }
 
+    environment {
+        GIT_ID = "${sh(returnStdout: true, script: 'git describe --always').trim()}"
+        BUILD_TIME = new Date().format('yyyyMMddHHmmss')
+        ALIAS = "${GIT_ID}-${BUILD_TIME}"
+    }
+
     stages {
         stage('Build artefact') {
             agent {
@@ -31,31 +37,26 @@ pipeline {
         }
         stage('Upload to s3') {
             steps {
-                script {
-                    git_id = sh(returnStdout: true, script: 'git describe --always').trim()
-                }
                 sh(
                     """
                     aws s3 cp ${target_file} \
-                        s3://mdtp-lambda-functions-integration/${env.JOB_BASE_NAME}/${env.JOB_BASE_NAME}_${git_id}.zip \
+                        s3://mdtp-lambda-functions-integration/${env.JOB_BASE_NAME}/${env.JOB_BASE_NAME}_${ALIAS}.zip \
                         --acl=bucket-owner-full-control --only-show-errors
                     aws s3 cp ${env.JOB_BASE_NAME}.zip.base64sha256 \
-                        s3://mdtp-lambda-functions-integration/${env.JOB_BASE_NAME}/${env.JOB_BASE_NAME}_${git_id}.zip.base64sha256 \
+                        s3://mdtp-lambda-functions-integration/${env.JOB_BASE_NAME}/${env.JOB_BASE_NAME}_${ALIAS}.zip.base64sha256 \
                         --content-type text/plain --acl=bucket-owner-full-control --only-show-errors
                     """
                 )
             }
         }
-        stage('Deploy to Integration, Development & QA') {
+        stage('Deploy to Integration') {
             steps {
                 build(
-                    job: 'api-platform-admin-api/deploy_lambda',
+                    job: 'api-platform-admin-api/deploy_lambda_version',
                     parameters: [
                         [$class: 'StringParameterValue', name: 'ARTEFACT', value: env.JOB_BASE_NAME],
-                        [$class: 'StringParameterValue', name: 'VERSION', value: git_id],
-                        [$class: 'BooleanParameterValue', name: 'DEPLOY_INTEGRATION', value: true],
-                        [$class: 'BooleanParameterValue', name: 'DEPLOY_DEVELOPMENT', value: true],
-                        [$class: 'BooleanParameterValue', name: 'DEPLOY_QA', value: true]
+                        [$class: 'StringParameterValue', name: 'HASH', value: ALIAS],
+                        [$class: 'BooleanParameterValue', name: 'ACTIVATE_INTEGRATION', value: true],
                     ]
                 )
             }
