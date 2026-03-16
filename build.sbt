@@ -6,7 +6,7 @@ lazy val awsSdkVersion = "2.31.66"
 lazy val mockitoVersion = "5.18.0"
 
 lazy val compileDependencies = Seq(
-  "uk.gov.hmrc"            %% "api-platform-manage-api" % "0.50.0",
+  "uk.gov.hmrc"            %% "api-platform-manage-api" % "0.51.0",
   "software.amazon.awssdk"  % "sqs"                     % awsSdkVersion,
   "software.amazon.awssdk"  % "waf"                     % awsSdkVersion
 )
