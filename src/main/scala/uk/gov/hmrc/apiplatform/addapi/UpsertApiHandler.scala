@@ -67,7 +67,8 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
       |"path": "$context.path",
       |"extended.contextErrorResponseType": "$context.error.responseType",
       |"extended.contextErrorMessage": "$context.error.message",
-      |"apiId": "$context.apiId"}""".stripMargin.replaceAll("[\n\r]","")
+      |"apiId": "$context.apiId",
+      |"application.usagePlanId": "$context.authorizer.usagePlanId"}""".stripMargin.replaceAll("[\n\r]","")
 
   def this() = {
     this(awsApiGatewayClient, new UsagePlanService, WafRegionalClient.create(), new DeploymentService(awsApiGatewayClient), new SwaggerService, sys.env)
