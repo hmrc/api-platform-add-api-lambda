@@ -71,7 +71,9 @@ class UpsertApiHandler(override val apiGatewayClient: ApiGatewayClient,
       |"application.usagePlanId": "$context.authorizer.usagePlanId"}""".stripMargin.replaceAll("[\n\r]","")
 
   def this() = {
+    // $COVERAGE-OFF$
     this(awsApiGatewayClient, new UsagePlanService, WafRegionalClient.create(), new DeploymentService(awsApiGatewayClient), new SwaggerService, sys.env)
+    // $COVERAGE-ON$
   }
 
   override def handleInput(input: SQSEvent, context: Context): Unit = {
