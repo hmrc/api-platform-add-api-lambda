@@ -43,16 +43,6 @@ class UsagePlanService(apiGatewayClient: ApiGatewayClient,
     val selectedUsagePlans: Seq[String] = baseUsagePlans.map(base => s"$base$apiPrioritySuffix")
     val partitions = usagePlanIds.partition(entry => selectedUsagePlans.contains(entry._1))
     val selectedUserPlansIds: Seq[String] = partitions._1.values.toSeq
-    val otherUserPlansIds: Seq[String] = partitions._2.values.toSeq
-
-    otherUserPlansIds foreach { usagePlanId =>
-      if (findExistingSubscriptions(usagePlanId).contains(restApiId)) {
-        logger.log(s"API $restApiId present in usage plan $usagePlanId. Removing it.")
-        sendUpdateMessage(usagePlanId, REMOVE, restApiId)
-      } else {
-        logger.log(s"API $restApiId not present in usage plan $usagePlanId")
-      }
-    }
 
     selectedUserPlansIds foreach { usagePlanId =>
       if (findExistingSubscriptions(usagePlanId).contains(restApiId)) {
