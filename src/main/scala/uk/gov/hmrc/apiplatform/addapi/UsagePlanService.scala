@@ -33,7 +33,9 @@ class UsagePlanService(apiGatewayClient: ApiGatewayClient,
                        environment: Map[String, String]) extends JsonMapper {
 
   def this() = {
+    // $COVERAGE-OFF$
     this(awsApiGatewayClient, SqsClient.create(), sys.env)
+    // $COVERAGE-ON$
   }
 
   def addApiToUsagePlans(restApiId: String, apiNameWithoutVersion: String)(implicit logger: LambdaLogger): Unit = {
