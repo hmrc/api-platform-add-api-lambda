@@ -13,6 +13,13 @@ pipeline {
     }
 
     stages {
+        stage('Set build details') {
+            steps {
+                script {
+                    currentBuild.description = "version - ${ALIAS}"
+                }
+            }
+        }
         stage('Build artefact') {
             agent {
                 dockerfile {
