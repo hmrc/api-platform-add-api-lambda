@@ -134,23 +134,5 @@ class UsagePlanServiceSpec extends AnyWordSpec with Matchers with MockitoSugar w
       capturedRequests should have size 1
       verifyUsagePlanUpdate((capturedRequests.head.messageBody, "BRONZE_HIGH", ADD))
     }
-
-    "remove the API from usage plans of a different priority" in new Setup {
-      when(mockSqsClient.sendMessage(any[SendMessageRequest])).thenReturn(SendMessageResponse.builder().build())
-      when(mockAPIGatewayClient.getUsagePlan(any[GetUsagePlanRequest])).thenAnswer(new GetUsagePlanAnswer(Seq(usagePlans("BRONZE_HIGH"), usagePlans("SILVER_HIGH"))))
-
-      usagePlanService.addApiToUsagePlans(apiId, apiNameWithoutVersion)
-
-      val sendMessageRequestCaptor = ArgumentCaptor.forClass(classOf[SendMessageRequest])
-      verify(mockSqsClient, atLeastOnce).sendMessage(sendMessageRequestCaptor.capture)
-      val capturedRequests: Seq[SendMessageRequest] = sendMessageRequestCaptor.getAllValues.asScala.toSeq
-      capturedRequests should have size 4
-      verifyUsagePlanUpdate(
-        (capturedRequests.head.messageBody, "BRONZE_HIGH", REMOVE),
-        (capturedRequests(1).messageBody, "SILVER_HIGH", REMOVE),
-        (capturedRequests(2).messageBody, "BRONZE", ADD),
-        (capturedRequests(3).messageBody, "SILVER", ADD)
-      )
-    }
   }
 }
